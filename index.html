@@ -129,6 +129,9 @@ button{font:inherit;color:inherit}
 .field .lab{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--felt-muted)}
 .field .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .field input{border-color:var(--seat)}
+.pick{display:flex;gap:8px}
+.emo{flex:1;min-height:44px;border-radius:12px;border:1.5px solid rgba(255,255,255,.22);background:rgba(0,0,0,.18);font-size:22px;line-height:1;cursor:pointer;opacity:.5;transition:opacity .15s, border-color .15s, background .15s}
+.emo[aria-pressed="true"]{opacity:1;border-color:var(--gold);background:rgba(227,167,47,.2)}
 .setup-note{margin:0;font-size:13px;color:var(--felt-muted);text-align:center;text-wrap:balance}
 .join .btn{flex:none}
 
@@ -225,8 +228,8 @@ details li{margin:3px 0}
     </div>
     <form class="setup" id="setupForm" hidden>
       <div class="fields">
-        <label class="field s1" for="name-p1"><span class="lab"><span class="dot"></span><span id="lab-p1">Spieler 1</span></span><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"></label>
-        <label class="field s2" for="name-p2"><span class="lab"><span class="dot"></span><span id="lab-p2">Spieler 2</span></span><input id="name-p2" name="name-p2" maxlength="16" autocomplete="off" placeholder="Spieler 2"></label>
+        <div class="field s1"><label class="lab" for="name-p1"><span class="dot"></span><span id="lab-p1">Spieler 1</span></label><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"><div class="pick" role="group" aria-label="Symbol für Spieler 1"><button type="button" class="emo" data-seat="p1" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-seat="p1" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div></div>
+        <div class="field s2"><label class="lab" for="name-p2"><span class="dot"></span><span id="lab-p2">Spieler 2</span></label><input id="name-p2" name="name-p2" maxlength="16" autocomplete="off" placeholder="Spieler 2"><div class="pick" role="group" aria-label="Symbol für Spieler 2"><button type="button" class="emo" data-seat="p2" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-seat="p2" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div></div>
       </div>
       <button class="btn" type="submit">Spiel starten</button>
       <p class="setup-note" id="setupNote"></p>
@@ -317,6 +320,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const KEYS = CATS.map(c => c.k);
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
   const SEATS = ['p1','p2'];
+  const EMOJIS = ['🥦','💚'];
   const other = s => s === 'p1' ? 'p2' : 'p1';
 
   // ---------- scoring ----------
@@ -362,7 +366,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
     for (const seat of SEATS){
       const v = raw.seats && raw.seats[seat];
-      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : ''};
+      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '', emoji: EMOJIS.includes(v.emoji) ? v.emoji : ''};
       const sc = raw.scores && raw.scores[seat];
       if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
     }
@@ -390,6 +394,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   let joining = false;
   let pendingConfirm = null;
   let setupVisible = false;
+  let setupEmoji = {p1: '', p2: ''};
   let chain = Promise.resolve();
 
   const $ = id => document.getElementById(id);
@@ -403,6 +408,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   function seatName(seat, st = S){
     const v = st && st.seats[seat];
     return (v && v.nick) || (seat === 'p1' ? 'Spieler 1' : 'Spieler 2');
+  }
+  function seatLabel(seat, st = S){
+    const v = st && st.seats[seat];
+    return (v && v.emoji ? v.emoji + ' ' : '') + seatName(seat, st);
   }
 
   // ---------- writes ----------
@@ -517,12 +526,12 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       resetTurn(s);
     });
   }
-  function startGame(names){
+  function startGame(names, emojis){
     commit(s => {
       if (s.status !== 'setup') return false;
       for (const seat of SEATS){
         const id = s.seats[seat] ? s.seats[seat].id : 'local-' + seat;
-        s.seats[seat] = {id, nick: names[seat]};
+        s.seats[seat] = {id, nick: names[seat], emoji: emojis[seat] || ''};
       }
       s.status = 'playing'; s.turn = s.starter;
       resetTurn(s);
@@ -654,7 +663,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       const nm = document.createElement('span'); nm.className = 'nm';
       const dot = document.createElement('span'); dot.className = 'dot';
       const label = document.createElement('span'); label.className = 'label';
-      label.textContent = taken ? seatName(seat) : '—';
+      label.textContent = taken ? seatLabel(seat) : '—';
       nm.append(dot, label);
       if (isMe(seat)){ const y = document.createElement('span'); y.className = 'you'; y.textContent = 'Du'; nm.appendChild(y); }
       const tot = document.createElement('span'); tot.className = 'tot';
@@ -662,7 +671,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       line.append(nm, tot); c.append(role, line); pl.appendChild(c);
       const th = $('h-' + seat);
       th.classList.toggle('active', active);
-      th.firstElementChild.textContent = seatName(seat);
+      th.firstElementChild.textContent = seatLabel(seat);
       th.lastElementChild.textContent = [isMe(seat) ? 'Du' : '', active ? 'Am Zug' : ''].filter(Boolean).join(' · ');
     }
 
@@ -680,16 +689,16 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     } else if (st.status === 'over'){
       const a = totals(st.scores.p1).total, b = totals(st.scores.p2).total;
       const win = a > b ? 'p1' : 'p2';
-      main = a === b ? 'Unentschieden' : isMe(win) ? 'Du gewinnst!' : `${seatName(win)} gewinnt`;
+      main = a === b ? 'Unentschieden' : isMe(win) ? 'Du gewinnst!' : `${seatLabel(win)} gewinnt`;
       sub = a === b ? `Beide haben ${a} Punkte.` : `${Math.max(a,b)} zu ${Math.min(a,b)} Punkte.`;
     } else {
       const lastTxt = st.last && st.last.seat !== st.turn ? `${seatName(st.last.seat)} hat ${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} eingetragen.` : '';
       if (myTurn){
         status.classList.add('mine');
-        main = mode === 'local' ? `${seatName(st.turn)} ist dran` : 'Du bist dran';
+        main = mode === 'local' ? `${seatLabel(st.turn)} ist dran` : 'Du bist dran';
         sub = st.rollsLeft === 3 ? (lastTxt || 'Würfle, um zu beginnen.') : st.rollsLeft === 0 ? 'Keine Würfe mehr. Wähle ein Feld in deiner Spalte.' : 'Tippe Würfel zum Halten an. Dann würfle nochmals oder wähle ein Feld.';
       } else {
-        main = `${seatName(st.turn)} ist dran`;
+        main = `${seatLabel(st.turn)} ist dran`;
         sub = st.dice ? `Wurf ${3 - st.rollsLeft} von 3` : (lastTxt || 'Noch nicht gewürfelt.');
       }
     }
@@ -741,6 +750,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const canSetup = inSetup && (mode === 'local' || (!!me && canWrite));
     $('setupForm').hidden = !canSetup;
     if (canSetup){
+      if (!setupVisible) setupEmoji = {p1: (st.seats.p1 && st.seats.p1.emoji) || '', p2: (st.seats.p2 && st.seats.p2.emoji) || ''};
+      document.querySelectorAll('.emo').forEach(b => b.setAttribute('aria-pressed', setupEmoji[b.dataset.seat] === b.dataset.emo ? 'true' : 'false'));
       for (const seat of SEATS){
         const inp = $('name-' + seat);
         if (!setupVisible) delete inp.dataset.dirty;
@@ -864,10 +875,16 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   $('cancel').addEventListener('click', () => { selected = null; render(); });
   $('love').addEventListener('click', () => { clearTimeout(loveTimer); $('love').hidden = true; });
   for (const seat of SEATS) $('name-' + seat).addEventListener('input', e => { e.target.dataset.dirty = '1'; });
+  document.querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => {
+    const seat = b.dataset.seat, emo = b.dataset.emo;
+    setupEmoji[seat] = emo;
+    setupEmoji[other(seat)] = EMOJIS.find(x => x !== emo);
+    render();
+  }));
   $('setupForm').addEventListener('submit', e => {
     e.preventDefault();
     const n = seat => $('name-' + seat).value.trim().replace(/\s+/g, ' ').slice(0, 16);
-    startGame({p1: n('p1'), p2: n('p2')});
+    startGame({p1: n('p1'), p2: n('p2')}, setupEmoji);
   });
   $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value); });
   function ask(text, fn){ pendingConfirm = fn; $('confirmText').textContent = text; render(); }
