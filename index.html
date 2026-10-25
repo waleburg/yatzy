@@ -131,6 +131,17 @@ button{font:inherit;color:inherit}
 .field input{border-color:var(--seat)}
 .brand{-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .setup:not(.secret) .pick{display:none}
+.reacts{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
+.rx{min-height:40px;border:none;border-radius:10px;background:rgba(255,255,255,.08);font-size:22px;line-height:1;cursor:pointer;transition:transform .12s, background .12s}
+.rx:active{transform:scale(.88);background:rgba(255,255,255,.18)}
+.reaction{position:fixed;left:50%;top:38%;z-index:25;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;transform:translate(-50%,-50%);animation:react 2.1s cubic-bezier(.2,.8,.3,1) forwards}
+.reaction .big{font-size:96px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.25))}
+.reaction .who{font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--toast);color:var(--toast-fg);white-space:nowrap}
+.reaction.mine{top:auto;bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+.reaction.mine .big{font-size:48px}
+@keyframes react{0%{opacity:0;transform:translate(-50%,-30%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}25%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1;transform:translate(-50%,-62%)}100%{opacity:0;transform:translate(-50%,-80%) scale(.9)}}
+@keyframes react-fade{0%,80%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.reaction{animation:react-fade 2.1s forwards}}
 .confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
 .pick{display:flex;gap:8px}
 .emo{flex:1;min-height:44px;border-radius:12px;border:1.5px solid rgba(255,255,255,.22);background:rgba(0,0,0,.18);font-size:22px;line-height:1;cursor:pointer;opacity:.5;transition:opacity .15s, border-color .15s, background .15s}
@@ -229,6 +240,7 @@ details li{margin:3px 0}
       <button class="btn" id="primary" type="button" disabled>Würfeln</button>
       <button class="btn ghost" id="cancel" type="button" hidden>Abbrechen</button>
     </div>
+    <div class="reacts" id="reacts" role="group" aria-label="Reaktion senden" hidden></div>
     <form class="setup" id="setupForm" hidden>
       <div class="fields">
         <div class="field s1"><label class="lab" for="name-p1"><span class="dot"></span><span id="lab-p1">Spieler 1</span></label><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"><div class="pick" role="group" aria-label="Symbol für Spieler 1"><button type="button" class="emo" data-seat="p1" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-seat="p1" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div></div>
@@ -324,6 +336,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
   const SEATS = ['p1','p2'];
   const EMOJIS = ['🥦','💚'];
+  const REACTIONS = [['😂','Lachen'], ['😍','Verliebt'], ['😘','Kuss'], ['🙄','Genervt'], ['😡','Wütend'], ['😱','Schockiert'], ['👏','Applaus']];
+  const REACT_SET = REACTIONS.map(r => r[0]);
   const other = s => s === 'p1' ? 'p2' : 'p1';
 
   // ---------- scoring ----------
@@ -369,7 +383,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
     for (const seat of SEATS){
       const v = raw.seats && raw.seats[seat];
-      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '', emoji: EMOJIS.includes(v.emoji) ? v.emoji : ''};
+      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '', emoji: EMOJIS.includes(v.emoji) ? v.emoji : '', react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null};
       const sc = raw.scores && raw.scores[seat];
       if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
     }
@@ -856,6 +870,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
     $('footShare').hidden = mode !== 'remote';
+    $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && st.status !== 'waiting');
     // the same person on another device (or the home-screen app) takes their seat back
     const showReclaim = mode === 'remote' && !me && !!st && !!st.seats.p1 && !!st.seats.p2;
     $('reclaim').hidden = !showReclaim;
@@ -977,11 +992,15 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const SOUND_TURN = [[784, 0], [1175, 0.16]];                          // two notes: your turn
   const SOUND_JOIN = [[659, 0], [784, 0.12], [988, 0.24]];              // partner sat down
   const SOUND_YATZY = [[523, 0], [659, 0.1], [784, 0.2], [1047, 0.3], [1319, 0.45]]; // fanfare
+  const SOUND_REACT = [[988, 0], [1319, 0.07]];                       // a reaction arrived
   const SOUND_OVER = [[523, 0], [659, 0.15], [784, 0.3], [1047, 0.45]]; // game over
   function notifyChange(prev, next){
     if (mode !== 'remote' || !prev || !next) return;
     const seat = mySeat(next);
     if (!seat) return;
+    const o = other(seat);
+    const r1 = prev.seats[o] && prev.seats[o].react, r2 = next.seats[o] && next.seats[o].react;
+    if (r2 && (!r1 || r1.n !== r2.n) && Math.abs(Date.now() - r2.n) < 120000){ showReaction(r2.e, o); chime(SOUND_REACT); }
     const wasMine = prev.status === 'playing' && prev.turn === seat;
     if (next.status === 'playing' && next.turn === seat && !wasMine) chime(SOUND_TURN);
     else if (prev.status === 'waiting' && next.status === 'setup') chime(SOUND_JOIN);
@@ -1023,6 +1042,35 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     toast(secret ? '🥦💚 freigeschaltet. Wähle dein Symbol im Namensformular.' : '🥦💚 wieder versteckt.');
     render();
   });
+
+  // ---------- reactions ----------
+  for (const [emo, label] of REACTIONS){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'rx'; b.textContent = emo; b.setAttribute('aria-label', label);
+    b.addEventListener('click', () => sendReaction(emo));
+    $('reacts').appendChild(b);
+  }
+  let lastReact = 0;
+  async function sendReaction(emo){
+    const seat = mySeat();
+    if (mode !== 'remote' || !seat) return;
+    const now = Date.now();
+    if (now - lastReact < 1200) return;
+    lastReact = now;
+    showReaction(emo, seat);
+    try { await ref.update({[`seats.${seat}.react`]: {e: emo, n: now}}); }
+    catch(e){ writeFailed(e); }
+  }
+  function showReaction(emo, seat){
+    const mine = seat === mySeat();
+    const box = document.createElement('div');
+    box.className = 'reaction' + (mine ? ' mine' : '');
+    const big = document.createElement('span'); big.className = 'big'; big.textContent = emo;
+    const who = document.createElement('span'); who.className = 'who'; who.textContent = mine ? 'Gesendet' : seatLabel(seat);
+    box.append(big, who);
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 2200);
+  }
 
   // ---------- confetti when five dice match ----------
   function confetti(){
@@ -1079,6 +1127,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const wrap = s => ({exists: s.exists(), data: () => s.data()});
     ref = {
       set: data => fs.setDoc(r, data),
+      update: patch => fs.updateDoc(r, patch),
       get: async () => wrap(await fs.getDoc(r)),
       transact: fn => fs.runTransaction(store, async tx => {
         const cur = await tx.get(r);
