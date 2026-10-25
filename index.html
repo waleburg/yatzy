@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Yatzy">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='5' fill='%23f8f6f0' stroke='%23133f39' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='8' r='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Ccircle cx='16' cy='16' r='2'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Yatzy zu zweit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -63,6 +65,7 @@ button{font:inherit;color:inherit}
 /* ---------- tray ---------- */
 .tray{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0;padding:12px max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px));
   background:radial-gradient(120% 90% at 50% 0%, var(--felt) 0%, var(--felt-deep) 100%);color:var(--felt-fg);border-radius:0 0 18px 18px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.tray.static{position:relative;top:0}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:20px;letter-spacing:.02em}
 .brand svg{width:22px;height:22px;flex:none}
@@ -142,6 +145,27 @@ button{font:inherit;color:inherit}
 @keyframes react{0%{opacity:0;transform:translate(-50%,-30%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}25%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1;transform:translate(-50%,-62%)}100%{opacity:0;transform:translate(-50%,-80%) scale(.9)}}
 @keyframes react-fade{0%,80%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion: reduce){.reaction{animation:react-fade 2.1s forwards}}
+.net{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:var(--ink2);color:#fff}
+.over{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.over-scores{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:center}
+.over-scores .side{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 6px;border-radius:12px;background:rgba(255,255,255,.07)}
+.over-scores .side.win{background:rgba(227,167,47,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.over-scores .who{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.over-scores .pts{font-family:var(--font-pen);font-size:34px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.over-scores .vs{font-size:12px;font-weight:700;color:var(--felt-muted);letter-spacing:.1em}
+.over-facts{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--felt-fg)}
+.over-facts li{display:flex;justify-content:space-between;gap:12px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.1)}
+.over-facts li span:last-child{font-weight:700;text-align:right}
+.stats-table{width:100%;border-collapse:collapse;margin:4px 0 10px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.stats-table th,.stats-table td{height:34px;border-bottom:1px solid var(--grid);text-align:right;padding:0 6px;font-size:14px}
+.stats-table th:first-child,.stats-table td:first-child{text-align:left;padding-left:0}
+.stats-table thead th{font-size:12px;font-weight:700;color:var(--seat, var(--print))}
+.games{margin:0 0 12px;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.games li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--grid);font-size:14px;color:var(--fg)}
+.games .d{color:var(--muted)}
+.games b.p1{color:var(--ink1)} .games b.p2{color:var(--ink2)}
+#notesText{width:100%;min-height:150px;margin:4px 0 8px;padding:10px;border-radius:10px;border:1.5px solid var(--grid-strong);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;line-height:1.4;resize:vertical}
+#notesBox .row{margin-bottom:12px}
 .confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
 .pick{display:flex;gap:8px}
 .emo{flex:1;min-height:44px;border-radius:12px;border:1.5px solid rgba(255,255,255,.22);background:rgba(0,0,0,.18);font-size:22px;line-height:1;cursor:pointer;opacity:.5;transition:opacity .15s, border-color .15s, background .15s}
@@ -225,6 +249,7 @@ details li{margin:3px 0}
         Yatzy
       </div>
       <div class="top-right">
+        <span class="net" id="netBadge" hidden>Offline</span>
         <div class="series" id="series"></div>
         <button class="sound" id="soundBtn" type="button" aria-pressed="true" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><g class="wave"><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></g><g class="mute"><path d="M16 9l5 6M21 9l-5 6"/></g></svg>
@@ -235,10 +260,12 @@ details li{margin:3px 0}
     <div class="players" id="players"></div>
     <div class="status" id="status" role="status" aria-live="polite"><strong id="statusMain">Der Tisch wird vorbereitet…</strong><span id="statusSub"></span></div>
     <div class="dice" id="dice"></div>
+    <div class="over" id="overCard" hidden></div>
     <div class="controls" id="controls">
       <div class="rolls" id="rolls" aria-label="Verbleibende Würfe"></div>
       <button class="btn" id="primary" type="button" disabled>Würfeln</button>
       <button class="btn ghost" id="cancel" type="button" hidden>Abbrechen</button>
+      <button class="btn ghost" id="undoBtn" type="button" hidden>↶ Rückgängig</button>
     </div>
     <div class="reacts" id="reacts" role="group" aria-label="Reaktion senden" hidden></div>
     <form class="setup" id="setupForm" hidden>
@@ -290,6 +317,16 @@ details li{margin:3px 0}
       <button class="lnk" type="button" id="confirmNo">Weiterspielen</button>
       <button class="lnk danger" type="button" id="confirmYes">Ja</button>
     </div>
+    <details id="statsBox" hidden>
+      <summary>Statistik</summary>
+      <div id="stats"></div>
+    </details>
+    <details id="notesBox" hidden>
+      <summary>💌 Eigene Liebesbotschaften</summary>
+      <p class="note" id="notesIntro"></p>
+      <textarea id="notesText" rows="7" maxlength="4500" aria-label="Eigene Liebesbotschaften, eine pro Zeile"></textarea>
+      <div class="row"><button class="lnk" type="button" id="notesSave">Speichern</button></div>
+    </details>
     <details>
       <summary>Spielregeln</summary>
       <ul>
@@ -383,7 +420,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
     for (const seat of SEATS){
       const v = raw.seats && raw.seats[seat];
-      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '', emoji: EMOJIS.includes(v.emoji) ? v.emoji : '', react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null};
+      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {
+        id: v.id.slice(0,200),
+        nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '',
+        emoji: EMOJIS.includes(v.emoji) ? v.emoji : '',
+        react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null,
+        notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : []
+      };
       const sc = raw.scores && raw.scores[seat];
       if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
     }
@@ -394,8 +437,16 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (Array.isArray(raw.held) && raw.held.length === 5) s.held = raw.held.map(Boolean);
     if (int(raw.rollsLeft, 0, 3)) s.rollsLeft = raw.rollsLeft;
     if (Number.isFinite(raw.rollId)) s.rollId = raw.rollId;
-    if (raw.last && SEATS.includes(raw.last.seat) && KEYS.includes(raw.last.cat) && int(raw.last.pts,0,50)) s.last = {seat: raw.last.seat, cat: raw.last.cat, pts: raw.last.pts};
-    if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-50).map(h => ({at: String(h.at || '').slice(0,40), p1: h.p1, p2: h.p2}));
+    if (raw.last && SEATS.includes(raw.last.seat) && KEYS.includes(raw.last.cat) && int(raw.last.pts,0,50)){
+      const u = raw.last;
+      s.last = {seat: u.seat, cat: u.cat, pts: u.pts};
+      // what the dice looked like before the entry, so it can be undone
+      if (Array.isArray(u.dice) && u.dice.length === 5 && u.dice.every(d => int(d,1,6)) && Array.isArray(u.held) && u.held.length === 5 && int(u.rollsLeft,0,2))
+        Object.assign(s.last, {dice: u.dice.slice(), held: u.held.map(Boolean), rollsLeft: u.rollsLeft, over: !!u.over});
+    }
+    const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
+    if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-50)
+      .map(h => ({at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,1) ? h.y1 : 0, y2: int(h.y2,0,1) ? h.y2 : 0}));
     if (typeof raw.updatedAt === 'string') s.updatedAt = raw.updatedAt.slice(0,40);
     return s;
   }
@@ -407,7 +458,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   let myId = null, myName = '';
   let canWrite = true;
   let selected = null;
-  let lastRollId = null, lastWritten = null;
+  let lastRollId = null, lastWritten = null, lastStatus = null;
+  let netCached = false, hadServer = false, wasOffline = false;
   let joining = false;
   let pendingConfirm = null;
   let setupVisible = false;
@@ -432,23 +484,47 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   }
 
   // ---------- writes ----------
+  // A move shows on screen at once. At a shared table the same change then runs as a
+  // Firestore transaction on the latest server state, so two phones never overwrite each other.
+  // Until our own write comes back, snapshots only update serverS, not the screen.
+  let serverS = null, inflight = 0, awaiting = null, awaitTimer = null;
+  function applyServer(){
+    clearTimeout(awaitTimer); awaiting = null;
+    const prev = S; S = serverS;
+    notifyChange(prev, S);
+    if (selected && (!isMyTurn() || !S || !S.dice)) selected = null;
+    render();
+  }
   function commit(mutate){
-    chain = chain.then(async () => {
-      const base = S ? structuredClone(S) : blank();
-      if (mutate(base) === false) return;
-      base.updatedAt = new Date().toISOString();
-      const prev = S;
-      S = base; render();
-      if (mode === 'remote'){
-        try { await ref.set(base); }
-        catch(e){ S = prev; render(); writeFailed(e); }
-      } else if (mode === 'local') saveLocal();
-    });
-    return chain;
+    const local = S ? structuredClone(S) : blank();
+    if (mutate(local) === false) return;
+    const stamp = new Date().toISOString() + '~' + Math.random().toString(36).slice(2, 6);
+    local.updatedAt = stamp;
+    S = local; render();
+    if (mode === 'local'){ saveLocal(); return; }
+    if (mode !== 'remote') return;
+    inflight++; awaiting = stamp;
+    let ok = false;
+    chain = chain
+      .then(() => ref.transact(raw => {
+        const cur = raw ? clean(raw) : blank();
+        if (mutate(cur) === false) return null;
+        cur.updatedAt = stamp;
+        return cur;
+      }))
+      .then(wrote => { ok = wrote; if (!wrote) toast('Das ging nicht mehr: Der Spielstand hat sich inzwischen geändert.'); })
+      .catch(writeFailed)
+      .finally(() => {
+        if (--inflight) return;
+        if (!ok || (serverS && serverS.updatedAt === awaiting)) return applyServer();
+        clearTimeout(awaitTimer); awaitTimer = setTimeout(applyServer, 1500);   // our snapshot is on its way
+      });
   }
   function writeFailed(e){
     const code = e && e.code;
-    if (code === 'permission-denied'){
+    if (!navigator.onLine || code === 'unavailable' || code === 'failed-precondition'){
+      toast('Keine Verbindung. Der Zug wurde nicht gespeichert, versuch es gleich nochmals.');
+    } else if (code === 'permission-denied'){
       toast('Der Server hat den Zug abgelehnt. Prüfe die Firestore-Regeln (siehe README).');
     } else {
       toast('Der Zug wurde nicht gespeichert. Prüfe deine Verbindung und versuche es nochmals.');
@@ -460,10 +536,11 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   function roll(){
     if (!isMyTurn() || S.rollsLeft <= 0) return;
     selected = null;
+    const fresh = [0,1,2,3,4].map(rand);
     commit(s => {
       if (s.status !== 'playing' || s.rollsLeft <= 0) return false;
       if (!s.dice) s.held = [false,false,false,false,false];
-      s.dice = [0,1,2,3,4].map(i => s.dice && s.held[i] ? s.dice[i] : rand());
+      s.dice = [0,1,2,3,4].map(i => s.dice && s.held[i] ? s.dice[i] : fresh[i]);
       s.rollsLeft -= 1; s.rollId += 1;
     });
   }
@@ -490,6 +567,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   let lastNote = '';
   const isMarcel = seat => /^\s*marcel\b/i.test((S && S.seats[seat] && S.seats[seat].nick) || '');
   function cheer(seat, cat, pts){
+    const o = other(seat);
+    const custom = (S.seats[o] && S.seats[o].notes) || [];
+    if (custom.length && (isMarcel(seat) || Math.random() < 0.5)){
+      if (Math.random() > (cat === 'yatzy' && pts ? 1 : 0.5)) return;
+      const options = custom.length > 1 ? custom.filter(t => t !== lastNote) : custom;
+      return showNote(options[Math.floor(Math.random() * options.length)], 'Von ' + seatLabel(o));
+    }
     if (isMarcel(seat)) return;
     const up = CATS.find(c => c.k === cat).up;
     const ratio = pts / MAX[cat];
@@ -504,11 +588,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     else { pool = NOTES.ok; chance = 0.4; }
     if (Math.random() > chance) return;
     const options = pool.filter(t => t !== lastNote);
-    const text = options[Math.floor(Math.random() * options.length)];
+    showNote(options[Math.floor(Math.random() * options.length)], 'Vom Marcel');
+  }
+  function showNote(text, signature){
     lastNote = text;
     const el = $('love');
     el.textContent = text;
-    const from = document.createElement('small'); from.textContent = 'Vom Marcel · antippen zum Schliessen';
+    const from = document.createElement('small'); from.textContent = signature + ' · antippen zum Schliessen';
     el.appendChild(from);
     el.hidden = false;
     clearTimeout(loveTimer); loveTimer = setTimeout(() => { el.hidden = true; }, 6500);
@@ -524,14 +610,38 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       if (!s.dice || s.scores[seat][cat] != null || s.turn !== seat) return false;
       const pts = score(cat, s.dice);
       s.scores[seat][cat] = pts;
-      s.last = {seat, cat, pts};
+      s.last = {seat, cat, pts, dice: s.dice.slice(), held: s.held.slice(), rollsLeft: s.rollsLeft, over: false};
       if (filled(s.scores.p1) === 15 && filled(s.scores.p2) === 15){
-        s.status = 'over';
-        s.history = s.history.concat({at: new Date().toISOString(), p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total}).slice(-50);
+        s.status = 'over'; s.last.over = true;
+        s.history = s.history.concat({
+          at: new Date().toISOString(), p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
+          n1: seatName('p1', s), n2: seatName('p2', s), y1: s.scores.p1.yatzy === 50 ? 1 : 0, y2: s.scores.p2.yatzy === 50 ? 1 : 0
+        }).slice(-50);
       } else {
         s.turn = other(seat);
       }
       resetTurn(s);
+    });
+  }
+  // The last entry can be taken back until the other person has rolled.
+  function canUndo(st = S){
+    if (!st || !st.last || !st.last.dice || !canWrite) return false;
+    const L = st.last;
+    if (mode === 'remote' && mySeat(st) !== L.seat) return false;
+    if (st.status === 'over') return L.over;
+    return st.status === 'playing' && st.turn === other(L.seat) && !st.dice && st.rollsLeft === 3;
+  }
+  function undo(){
+    if (!canUndo()) return;
+    selected = null;
+    commit(s => {
+      if (!canUndo(s)) return false;
+      const L = s.last;
+      delete s.scores[L.seat][L.cat];
+      if (L.over) s.history = s.history.slice(0, -1);
+      s.status = 'playing'; s.turn = L.seat;
+      s.dice = L.dice; s.held = L.held; s.rollsLeft = L.rollsLeft;
+      s.last = null;
     });
   }
   function newGame(){
@@ -548,7 +658,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       if (s.status !== 'setup') return false;
       for (const seat of SEATS){
         const id = s.seats[seat] ? s.seats[seat].id : 'local-' + seat;
-        s.seats[seat] = {id, nick: names[seat], emoji: emojis[seat] || ''};
+        s.seats[seat] = Object.assign({react: null, notes: []}, s.seats[seat], {id, nick: names[seat], emoji: emojis[seat] || ''});
       }
       s.status = 'playing'; s.turn = s.starter;
       resetTurn(s);
@@ -707,7 +817,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       const a = totals(st.scores.p1).total, b = totals(st.scores.p2).total;
       const win = a > b ? 'p1' : 'p2';
       main = a === b ? 'Unentschieden' : isMe(win) ? 'Du gewinnst!' : `${seatLabel(win)} gewinnt`;
-      sub = a === b ? `Beide haben ${a} Punkte.` : `${Math.max(a,b)} zu ${Math.min(a,b)} Punkte.`;
+      sub = '';
     } else {
       const lastTxt = st.last && st.last.seat !== st.turn ? `${seatName(st.last.seat)} hat ${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} eingetragen.` : '';
       if (myTurn){
@@ -734,7 +844,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       el.setAttribute('aria-pressed', v && st.held[i] ? 'true' : 'false');
       if (animate && !st.held[i]){ el.classList.remove('rolling'); void el.offsetWidth; el.classList.add('rolling'); }
     });
+    if (animate) rattle();
     if (animate && st.dice && st.dice.every(d => d === st.dice[0])) setTimeout(() => { confetti(); chime(SOUND_YATZY); }, 450);
+    if (st && lastStatus === 'playing' && st.status === 'over') setTimeout(confetti, 300);
+    lastStatus = st ? st.status : null;
     if (st) lastRollId = st.rollId;
 
     // rolls left + buttons
@@ -745,7 +858,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     cancel.hidden = !selected;
     primary.disabled = true;
     if (st && st.status === 'over'){
-      primary.textContent = 'Nochmals spielen';
+      primary.textContent = 'Revanche';
       primary.disabled = !(mode === 'local' || (me && canWrite));
     } else if (myTurn && selected){
       const pts = score(selected, st.dice);
@@ -760,9 +873,14 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     } else {
       primary.textContent = 'Würfeln';
     }
+    $('undoBtn').hidden = !canUndo() || !!selected;
+    if (!$('undoBtn').hidden) $('undoBtn').setAttribute('aria-label', `${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} zurücknehmen`);
     const inSetup = !!st && st.status === 'setup';
+    const isOver = !!st && st.status === 'over';
     $('controls').hidden = inSetup || (mode === 'remote' && !me && !(st && st.status !== 'waiting'));
-    $('dice').hidden = inSetup;
+    $('dice').hidden = inSetup || isOver;
+    renderOver(st, isOver);
+    document.querySelector('.tray').classList.toggle('static', !playing);
 
     // name form at the start of each game
     const canSetup = inSetup && (mode === 'local' || (!!me && canWrite));
@@ -871,6 +989,12 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (showShare) $('shareUrl').value = location.href;
     $('footShare').hidden = mode !== 'remote';
     $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && st.status !== 'waiting');
+    const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
+    $('netBadge').hidden = !offline;
+    if (offline && !wasOffline) toast('Keine Verbindung. Sobald du wieder online bist, geht es weiter.');
+    wasOffline = offline;
+    renderStats(st);
+    renderNotes(st, me);
     // the same person on another device (or the home-screen app) takes their seat back
     const showReclaim = mode === 'remote' && !me && !!st && !!st.seats.p1 && !!st.seats.p2;
     $('reclaim').hidden = !showReclaim;
@@ -886,6 +1010,117 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     }
   }
 
+  // ---------- game over card ----------
+  function renderOver(st, isOver){
+    const card = $('overCard');
+    card.hidden = !isOver;
+    if (!isOver) return;
+    const t = {p1: totals(st.scores.p1), p2: totals(st.scores.p2)};
+    const win = t.p1.total === t.p2.total ? null : t.p1.total > t.p2.total ? 'p1' : 'p2';
+    card.textContent = '';
+    const row = document.createElement('div'); row.className = 'over-scores';
+    const side = seat => {
+      const d = document.createElement('div'); d.className = 'side' + (win === seat ? ' win' : '');
+      const w = document.createElement('span'); w.className = 'who'; w.textContent = (win === seat ? '🏆 ' : '') + seatLabel(seat);
+      const p = document.createElement('span'); p.className = 'pts'; p.textContent = t[seat].total;
+      d.append(w, p); return d;
+    };
+    const vs = document.createElement('span'); vs.className = 'vs'; vs.textContent = 'ZU';
+    row.append(side('p1'), vs, side('p2'));
+    let best = null;
+    for (const seat of SEATS) for (const k of KEYS){ const v = st.scores[seat][k]; if (v != null && (!best || v > best.v)) best = {seat, k, v}; }
+    const facts = [
+      ['Vorsprung', win ? `${Math.abs(t.p1.total - t.p2.total)} Punkte` : 'Gleichstand'],
+      ['Bonus (63+)', SEATS.filter(x => t[x].bonus).map(x => seatName(x)).join(' und ') || 'niemand'],
+      ['Yatzy', SEATS.filter(x => st.scores[x].yatzy === 50).map(x => seatName(x)).join(' und ') || 'keins'],
+      ['Beste Eintragung', best ? `${best.v} bei ${CATS.find(c => c.k === best.k).n} (${seatName(best.seat)})` : '–']
+    ];
+    const ul = document.createElement('ul'); ul.className = 'over-facts';
+    for (const [a, b] of facts){
+      const li = document.createElement('li');
+      const x = document.createElement('span'); x.textContent = a;
+      const y = document.createElement('span'); y.textContent = b;
+      li.append(x, y); ul.appendChild(li);
+    }
+    card.append(row, ul);
+  }
+
+  // ---------- statistics from the finished games ----------
+  function renderStats(st){
+    const box = $('statsBox');
+    const H = st ? st.history : [];
+    box.hidden = !H.length;
+    if (!H.length) return;
+    const per = {p1: {wins: 0, best: 0, sum: 0, y: 0}, p2: {wins: 0, best: 0, sum: 0, y: 0}};
+    let draws = 0, streak = {seat: null, n: 0};
+    for (const h of H){
+      for (const seat of SEATS){ const v = h[seat]; per[seat].best = Math.max(per[seat].best, v); per[seat].sum += v; }
+      per.p1.y += h.y1; per.p2.y += h.y2;
+      const w = h.p1 === h.p2 ? null : h.p1 > h.p2 ? 'p1' : 'p2';
+      if (!w){ draws++; streak = {seat: null, n: 0}; continue; }
+      per[w].wins++;
+      streak = streak.seat === w ? {seat: w, n: streak.n + 1} : {seat: w, n: 1};
+    }
+    const out = $('stats'); out.textContent = '';
+    const table = document.createElement('table'); table.className = 'stats-table';
+    const head = document.createElement('tr');
+    for (const [txt, seat] of [['', null], [seatLabel('p1'), 'p1'], [seatLabel('p2'), 'p2']]){
+      const th = document.createElement('th'); th.textContent = txt;
+      if (seat) th.style.setProperty('--seat', `var(--ink${seat === 'p1' ? 1 : 2})`);
+      head.appendChild(th);
+    }
+    const thead = document.createElement('thead'); thead.appendChild(head);
+    const tbody = document.createElement('tbody');
+    const rows = [
+      ['Siege', per.p1.wins, per.p2.wins],
+      ['Höchste Punktzahl', per.p1.best, per.p2.best],
+      ['Durchschnitt', Math.round(per.p1.sum / H.length), Math.round(per.p2.sum / H.length)],
+      ['Yatzys', per.p1.y, per.p2.y]
+    ];
+    for (const r of rows){
+      const tr = document.createElement('tr');
+      r.forEach((v, i) => { const td = document.createElement(i ? 'td' : 'th'); td.textContent = v; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    }
+    table.append(thead, tbody);
+    const note = document.createElement('p'); note.className = 'note';
+    note.textContent = `${H.length} ${H.length === 1 ? 'Spiel' : 'Spiele'}` + (draws ? `, ${draws} unentschieden` : '') +
+      (streak.n > 1 ? `. ${seatName(streak.seat)} hat die letzten ${streak.n} Spiele gewonnen.` : '.');
+    const list = document.createElement('ul'); list.className = 'games';
+    for (const h of H.slice(-10).reverse()){
+      const li = document.createElement('li');
+      const d = document.createElement('span'); d.className = 'd';
+      const dt = new Date(h.at);
+      d.textContent = isNaN(dt) ? '' : dt.toLocaleDateString('de-CH', {day: '2-digit', month: '2-digit', year: '2-digit'});
+      const sc = document.createElement('span');
+      const a = document.createElement('b'); a.textContent = h.p1; if (h.p1 > h.p2) a.className = 'p1';
+      const b = document.createElement('b'); b.textContent = h.p2; if (h.p2 > h.p1) b.className = 'p2';
+      sc.append(a, ' : ', b);
+      li.append(d, sc); list.appendChild(li);
+    }
+    out.append(table, note, list);
+  }
+
+  // ---------- own love notes (hidden; unlocked with the same three taps on the logo) ----------
+  let notesShownFor = null;
+  function renderNotes(st, me){
+    const show = secret && mode === 'remote' && !!me && !!st && !!st.seats[me];
+    $('notesBox').hidden = !show;
+    if (!show) return;
+    $('notesIntro').textContent = `Schreib Sätze für ${seatName(other(me))}, einen pro Zeile (höchstens 30). Wenn ${seatName(other(me))} etwas einträgt, erscheint manchmal einer davon, unterschrieben mit deinem Namen.`;
+    const ta = $('notesText');
+    if (notesShownFor !== me && document.activeElement !== ta){ ta.value = st.seats[me].notes.join('\n'); notesShownFor = me; }
+  }
+  $('notesSave').addEventListener('click', async () => {
+    const me = mySeat();
+    if (mode !== 'remote' || !me) return;
+    const lines = $('notesText').value.split('\n').map(t => t.trim()).filter(Boolean).slice(0, 30).map(t => t.slice(0, 140));
+    try {
+      await ref.update({[`seats.${me}.notes`]: lines});
+      toast(lines.length ? `Gespeichert: ${lines.length} ${lines.length === 1 ? 'Botschaft' : 'Botschaften'} für ${seatName(other(me))}.` : 'Gespeichert. Es werden wieder die eingebauten Sprüche verwendet.');
+    } catch(e){ writeFailed(e); }
+  });
+
   // ---------- events ----------
   $('primary').addEventListener('click', () => {
     if (S && S.status === 'over') return newGame();
@@ -893,6 +1128,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     roll();
   });
   $('cancel').addEventListener('click', () => { selected = null; render(); });
+  $('undoBtn').addEventListener('click', undo);
+  addEventListener('online', () => render());
+  addEventListener('offline', () => render());
   $('love').addEventListener('click', () => { clearTimeout(loveTimer); $('love').hidden = true; });
   for (const seat of SEATS) $('name-' + seat).addEventListener('input', e => { e.target.dataset.dirty = '1'; });
   document.querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => {
@@ -987,6 +1225,23 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         o.connect(g).connect(audio.destination);
         o.start(t0 + at); o.stop(t0 + at + 1.2);
       }
+    }
+  }
+  // a short rattle: a few filtered noise clicks, like dice in a cup
+  function rattle(){
+    if (!soundOn || !audio) return;
+    if (audio.state === 'suspended') audio.resume();
+    const len = Math.floor(audio.sampleRate * 0.025);
+    const buf = audio.createBuffer(1, len, audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const t0 = audio.currentTime + 0.01;
+    for (let k = 0; k < 9; k++){
+      const src = audio.createBufferSource(); src.buffer = buf;
+      const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800 + Math.random() * 2200; f.Q.value = 3;
+      const g = audio.createGain(); g.gain.value = 0.55 * (1 - k / 11);
+      src.connect(f).connect(g).connect(audio.destination);
+      src.start(t0 + k * 0.035 + Math.random() * 0.03);
     }
   }
   const SOUND_TURN = [[784, 0], [1175, 0.16]];                          // two notes: your turn
@@ -1124,7 +1379,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     }
     const store = fs.getFirestore(fb.initializeApp(FIREBASE_CONFIG));
     const r = fs.doc(store, 'games', roomId());
-    const wrap = s => ({exists: s.exists(), data: () => s.data()});
+    const wrap = s => ({exists: s.exists(), data: () => s.data(), cached: s.metadata.fromCache});
     ref = {
       set: data => fs.setDoc(r, data),
       update: patch => fs.updateDoc(r, patch),
@@ -1133,13 +1388,19 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         const cur = await tx.get(r);
         const next = fn(cur.exists() ? cur.data() : null);
         if (next) tx.set(r, next);
+        return !!next;
       }),
-      onSnapshot: (next, err) => fs.onSnapshot(r, s => next(wrap(s)), err)
+      onSnapshot: (next, err) => fs.onSnapshot(r, {includeMetadataChanges: true}, s => next(wrap(s)), err)
     };
     mode = 'remote';
     render();
     const subscribe = () => ref.onSnapshot(
-      snap => { const prev = S; S = snap.exists ? clean(snap.data()) : null; notifyChange(prev, S); if (selected && (!isMyTurn() || !S.dice)) selected = null; render(); },
+      snap => {
+        netCached = snap.cached; if (!snap.cached) hadServer = true;
+        serverS = snap.exists ? clean(snap.data()) : null;
+        if (inflight || (awaiting && (!serverS || serverS.updatedAt !== awaiting))) return render();   // keep our move on screen until it lands
+        applyServer();
+      },
       err => {
         if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu. Prüfe die Firestore-Regeln (siehe README).');
         else { toast('Die Verbindung ist unterbrochen. Ich versuche es gleich nochmals.'); setTimeout(subscribe, 4000); }
