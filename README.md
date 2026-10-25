@@ -60,6 +60,7 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 
 ## Gut zu wissen
 
+- **Ton:** Wenn du dran bist, spielt ein kurzer Gong. Auch wenn die zweite Person Platz nimmt und wenn das Spiel vorbei ist, hörst du einen Ton. Oben rechts schaltest du ihn mit «Ton an/aus» um. Damit der Gong zu hören ist, bleibt der Bildschirm während des Spiels an. Ist das iPhone gesperrt oder die Seite im Hintergrund, kommt kein Ton. Beim lautlosen iPhone (Schalter auf stumm) kann der Ton auch ausbleiben.
 - **Wer den Raum-Link kennt, kann mitspielen.** Teilt ihn also nur untereinander. Einen neuen, leeren Tisch bekommst du, wenn du die Seite ohne `#raum-…` in einem privaten Safari-Fenster öffnest.
 - **Der Gratis-Tarif von Firebase («Spark») reicht locker.** Er erlaubt 50'000 Lese- und 20'000 Schreibvorgänge pro Tag. Ein Spiel braucht etwa 100 bis 200 Schreibvorgänge.
 - **Ohne eingetragene Firebase-Werte läuft die Seite trotzdem**, dann aber nur auf einem Handy. Ihr gebt es nach jedem Zug weiter.
