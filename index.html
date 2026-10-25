@@ -1103,8 +1103,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
   // ---------- own love notes (hidden; unlocked with the same three taps on the logo) ----------
   let notesShownFor = null;
+  // Only the 💚 player gets the box, and only with a 🥦 partner (by symbol or in the name).
+  function loveTeam(st, me){
+    const mine = st.seats[me], theirs = st.seats[other(me)];
+    return !!mine && !!theirs && mine.emoji === '💚' && (theirs.emoji === '🥦' || (theirs.nick || '').includes('🥦'));
+  }
   function renderNotes(st, me){
-    const show = secret && mode === 'remote' && !!me && !!st && !!st.seats[me];
+    const show = secret && mode === 'remote' && !!me && !!st && !!st.seats[me] && loveTeam(st, me);
     $('notesBox').hidden = !show;
     if (!show) return;
     $('notesIntro').textContent = `Schreib Sätze für ${seatName(other(me))}, einen pro Zeile (höchstens 30). Wenn ${seatName(other(me))} etwas einträgt, erscheint manchmal einer davon, unterschrieben mit deinem Namen.`;
