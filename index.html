@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#133f39">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Yatzy">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='5' fill='%23f8f6f0' stroke='%23133f39' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='8' r='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3Ccircle cx='16' cy='16' r='2'/%3E%3C/svg%3E">
+<title>Yatzy zu zweit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;600;700&family=Kalam:wght@400;700&display=swap">
+<style>
+/* Layout: phone-first single column. A sticky felt dice tray sits over a printed Yatzy score pad, written in two pen colours. */
+:root{
+  --bg:#e6ecef; --fg:#14273f; --muted:#5d6f84;
+  --felt:#1d5a52; --felt-deep:#133f39; --felt-fg:#e8f3ef; --felt-muted:#a9cbc2;
+  --paper:#fcfdfe; --grid:#c3d2e3; --grid-strong:#7d9bc0; --print:#1d3b63;
+  --ink1:#1c4ccc; --ink2:#bf3329; --pencil:#8592a3;
+  --die:#f8f6f0; --die-edge:#d6d0c2; --pip:#1a1c21;
+  --gold:#e3a72f; --gold-fg:#2b1d00;
+  --sel:#fff1c2; --toast:#14273f; --toast-fg:#f4f7fb;
+  --on-felt1:#a9c4ff; --on-felt2:#ffa59c; /* seat colours on the felt, which is dark in both themes */
+  --love-bg:#ffe3e6; --love-fg:#9c1f3a; --love-muted:#b8586c; /* a pink slip reads in both themes */
+  --font-ui:"Familjen Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-pen:"Kalam", "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1416; --fg:#dbe5ef; --muted:#8b9bad;
+    --felt:#174a43; --felt-deep:#0f322d; --felt-fg:#e3f1ec; --felt-muted:#8fb6ac;
+    --paper:#161f26; --grid:#2b3b4b; --grid-strong:#4d6680; --print:#c4d3e5;
+    --ink1:#8fb0ff; --ink2:#ff8e84; --pencil:#728296;
+    --die:#ece8de; --die-edge:#bdb6a6; --pip:#16181c;
+    --gold:#f0b844; --gold-fg:#251800;
+    --sel:#3a3220; --toast:#dbe5ef; --toast-fg:#0e1416;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1416; --fg:#dbe5ef; --muted:#8b9bad;
+  --felt:#174a43; --felt-deep:#0f322d; --felt-fg:#e3f1ec; --felt-muted:#8fb6ac;
+  --paper:#161f26; --grid:#2b3b4b; --grid-strong:#4d6680; --print:#c4d3e5;
+  --ink1:#8fb0ff; --ink2:#ff8e84; --pencil:#728296;
+  --die:#ece8de; --die-edge:#bdb6a6; --pip:#16181c;
+  --gold:#f0b844; --gold-fg:#251800;
+  --sel:#3a3220; --toast:#dbe5ef; --toast-fg:#0e1416;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
+body{margin:0;font-size:14px}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.4;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--felt-deep)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+.wrap{max-width:520px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px}
+
+/* ---------- tray ---------- */
+.tray{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0;padding:12px max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px));
+  background:radial-gradient(120% 90% at 50% 0%, var(--felt) 0%, var(--felt-deep) 100%);color:var(--felt-fg);border-radius:0 0 18px 18px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:20px;letter-spacing:.02em}
+.brand svg{width:22px;height:22px;flex:none}
+.series{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--felt-muted);font-variant-numeric:tabular-nums;text-align:right}
+.players{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.chip{--seat:var(--on-felt1);display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 10px 9px;border-radius:12px;background:rgba(255,255,255,.06);border:2px solid transparent;transition:opacity .2s, border-color .2s, background .2s}
+.chip.s2{--seat:var(--on-felt2)}
+.chip.turn{border-color:var(--gold);background:rgba(227,167,47,.16)}
+.chip.idle{opacity:.6}
+.chip .role{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--felt-muted)}
+.chip.turn .role{color:var(--gold)}
+.chip .line{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.chip .nm{min-width:0;font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px}
+.chip .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.chip .you{flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:999px;background:var(--felt-fg);color:var(--felt-deep)}
+.chip .tot{font-family:var(--font-pen);font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
+.status{margin-top:12px;min-height:44px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.status strong{font-size:20px;line-height:1.2;color:var(--felt-fg);text-wrap:balance}
+.status span{font-size:14px;color:var(--felt-muted);text-wrap:balance}
+.status.mine strong{color:var(--gold)}
+
+.dice{display:grid;grid-template-columns:repeat(5,minmax(0,64px));justify-content:center;gap:10px;margin-top:10px}
+.die{position:relative;aspect-ratio:1;max-width:100%;border:none;padding:0;border-radius:22%;background:var(--die);box-shadow:inset 0 -4px 0 var(--die-edge),0 3px 6px rgba(0,0,0,.3);
+  display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:16%;cursor:pointer;transition:transform .18s ease, box-shadow .18s ease}
+.die:disabled{cursor:default}
+.die .p{width:62%;aspect-ratio:1;margin:auto;border-radius:50%;background:var(--pip);visibility:hidden}
+.die .p.on{visibility:visible}
+.die.blank{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 2px rgba(255,255,255,.18)}
+.die.blank .p{display:none}
+.die.held{transform:translateY(-6px);box-shadow:inset 0 -4px 0 var(--die-edge),0 0 0 3px var(--gold),0 8px 14px rgba(0,0,0,.35)}
+.die .tag{position:absolute;left:50%;bottom:-19px;transform:translateX(-50%);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--gold);visibility:hidden}
+.die.held .tag{visibility:visible}
+.die.rolling{animation:tumble .5s cubic-bezier(.3,.7,.4,1)}
+@keyframes tumble{0%{transform:translateY(-14px) rotate(-30deg) scale(.9)}40%{transform:translateY(3px) rotate(18deg)}70%{transform:translateY(-3px) rotate(-6deg)}100%{transform:none}}
+@media (prefers-reduced-motion: reduce){.die.rolling{animation:none}.die,.chip{transition:none}}
+
+.controls{display:flex;align-items:center;gap:10px;margin-top:22px}
+.rolls{display:flex;gap:5px;flex:none}
+.rolls i{width:10px;height:10px;border-radius:50%;border:2px solid var(--felt-muted)}
+.rolls i.on{background:var(--gold);border-color:var(--gold)}
+.btn{flex:1;min-height:48px;border-radius:12px;border:none;font-weight:700;font-size:16px;cursor:pointer;background:var(--gold);color:var(--gold-fg);padding:0 14px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{background:rgba(255,255,255,.12);color:var(--felt-muted);box-shadow:none;cursor:default;font-weight:600}
+.btn.ghost{flex:none;background:transparent;color:var(--felt-fg);border:1.5px solid rgba(255,255,255,.3);box-shadow:none;font-weight:600}
+
+/* join / lobby card inside the tray */
+.join{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.join p{margin:0;font-size:14px;color:var(--felt-muted);text-align:center;text-wrap:balance}
+.join form{display:flex;gap:8px}
+.join input,.setup input{flex:1;min-width:0;min-height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,.3);background:rgba(0,0,0,.18);color:var(--felt-fg);font:inherit;font-size:16px;padding:0 12px}
+.join input::placeholder,.setup input::placeholder{color:var(--felt-muted)}
+.setup{margin-top:14px;display:flex;flex-direction:column;gap:12px}
+.setup .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.field{--seat:var(--on-felt1);display:flex;flex-direction:column;gap:6px;min-width:0}
+.field.s2{--seat:var(--on-felt2)}
+.field .lab{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--felt-muted)}
+.field .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.field input{border-color:var(--seat)}
+.setup-note{margin:0;font-size:13px;color:var(--felt-muted);text-align:center;text-wrap:balance}
+.join .btn{flex:none}
+
+/* ---------- score pad ---------- */
+.pad{margin-top:16px;background:var(--paper);border-radius:6px;box-shadow:0 1px 0 var(--grid),0 4px 14px rgba(20,39,63,.08);overflow:hidden}
+.pad h2{margin:0;padding:10px 12px 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--print);border-bottom:2px solid var(--grid-strong);display:flex;justify-content:space-between}
+.pad h2 span:last-child{letter-spacing:.04em;text-transform:none;color:var(--muted);font-weight:400}
+table{width:100%;border-collapse:collapse;table-layout:fixed;color:var(--print)}
+col.c-name{width:auto}
+col.c-p{width:27%}
+th,td{border-bottom:1px solid var(--grid);height:40px;padding:0}
+thead th{height:48px;font-size:13px;font-weight:700;letter-spacing:.04em;border-bottom:2px solid var(--grid-strong);transition:background .2s}
+thead th .nm{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px;color:var(--seat)}
+thead th .tag{display:block;min-height:13px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cell{--seat:var(--ink1)}
+.cell[data-seat="p2"]{--seat:var(--ink2)}
+th.cell.active{background:var(--seat)}
+th.cell.active .nm,th.cell.active .tag{color:var(--paper)}
+td.cell.active{background:color-mix(in srgb, var(--seat) 9%, var(--paper))}
+.padhint{margin:0;padding:9px 12px;display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--fg);background:color-mix(in srgb, var(--seat, var(--grid)) 12%, var(--paper));border-bottom:1px solid var(--grid);text-wrap:pretty}
+.padhint::before{content:"";flex:none;width:10px;height:10px;margin-top:5px;border-radius:50%;background:var(--seat, var(--grid-strong))}
+td.name{padding:0 12px;font-weight:600;font-size:15px}
+td.name small{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+td.cell{border-left:1px solid var(--grid);text-align:center}
+tr.sub td{background:color-mix(in srgb, var(--grid) 22%, transparent);font-size:13px}
+tr.sub td.name{font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+tr.total td{border-top:2px solid var(--grid-strong);border-bottom:none;height:48px}
+tr.total td.name{font-weight:700;text-transform:uppercase;letter-spacing:.1em;font-size:13px}
+tr.gap td{height:8px;border-bottom:2px solid var(--grid-strong);background:color-mix(in srgb, var(--grid) 22%, transparent)}
+.ink{font-family:var(--font-pen);font-size:21px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.ink.p1{color:var(--ink1)} .ink.p2{color:var(--ink2)}
+.ink.fresh{animation:pen .6s ease-out}
+@keyframes pen{from{opacity:0;transform:scale(1.4) rotate(-6deg)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.ink.fresh{animation:none}}
+.opt{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;font-family:var(--font-pen);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.opt .box{min-width:44px;padding:3px 8px;border:2px dashed var(--seat);border-radius:9px;background:var(--paper);color:var(--seat);line-height:1.1}
+.opt.zero .box{border-color:var(--pencil);color:var(--pencil);font-weight:400}
+tr.selected td{background:var(--sel)}
+tr.selected .opt .box{border-style:solid;border-color:var(--seat);background:var(--seat);color:var(--paper);font-weight:700}
+tr.clickable td.name{cursor:pointer}
+
+/* ---------- footer ---------- */
+.foot{margin-top:18px;display:flex;flex-direction:column;gap:12px;font-size:14px;color:var(--muted)}
+.foot .row{display:flex;flex-wrap:wrap;gap:8px}
+.lnk{min-height:40px;padding:0 14px;border-radius:10px;border:1.5px solid var(--grid-strong);background:transparent;color:var(--print);font-weight:600;cursor:pointer}
+.lnk.danger{border-color:var(--ink2);color:var(--ink2)}
+.confirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--paper);border:1.5px solid var(--grid)}
+.confirm span{flex:1 1 180px;color:var(--fg)}
+details{background:var(--paper);border-radius:8px;padding:0 12px;border:1px solid var(--grid)}
+summary{min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--print);cursor:pointer}
+details ul{margin:0 0 12px;padding-left:18px;color:var(--fg)}
+details li{margin:3px 0}
+.note{font-size:13px;color:var(--muted);text-wrap:pretty}
+
+/* love note: a slip of paper from the score pad, written in pen */
+.note-love{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:21;width:min(340px,calc(100% - 40px));transform:translateX(-50%) rotate(-2deg);
+  padding:14px 16px 12px;border:none;border-radius:4px;background:var(--love-bg);color:var(--love-fg);box-shadow:0 10px 28px rgba(0,0,0,.28);
+  font-family:var(--font-pen);font-size:22px;font-weight:700;line-height:1.25;text-align:left;cursor:pointer;animation:slip .45s cubic-bezier(.2,.9,.3,1.2)}
+.note-love small{display:block;margin-top:6px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--love-muted)}
+@keyframes slip{from{opacity:0;transform:translateX(-50%) translateY(30px) rotate(4deg)}to{opacity:1;transform:translateX(-50%) rotate(-2deg)}}
+@media (prefers-reduced-motion: reduce){.note-love{animation:none}}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:min(440px,calc(100% - 32px));background:var(--toast);color:var(--toast-fg);padding:10px 14px;border-radius:10px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:20}
+.share{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.share p{margin:0;font-size:14px;color:var(--felt-muted);text-align:center;text-wrap:balance}
+.share-row{display:flex;gap:8px}
+.share input{flex:1;min-width:0;min-height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,.3);background:rgba(0,0,0,.18);color:var(--felt-fg);font:inherit;font-size:14px;padding:0 12px}
+.share .btn{flex:none}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <section class="tray" aria-label="Würfelbrett">
+    <div class="top">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" fill="var(--die)"/><circle cx="8" cy="8" r="2" fill="var(--pip)"/><circle cx="16" cy="16" r="2" fill="var(--pip)"/><circle cx="12" cy="12" r="2" fill="var(--pip)"/></svg>
+        Yatzy
+      </div>
+      <div class="series" id="series"></div>
+    </div>
+    <div class="players" id="players"></div>
+    <div class="status" id="status" role="status" aria-live="polite"><strong id="statusMain">Der Tisch wird vorbereitet…</strong><span id="statusSub"></span></div>
+    <div class="dice" id="dice"></div>
+    <div class="controls" id="controls">
+      <div class="rolls" id="rolls" aria-label="Verbleibende Würfe"></div>
+      <button class="btn" id="primary" type="button" disabled>Würfeln</button>
+      <button class="btn ghost" id="cancel" type="button" hidden>Abbrechen</button>
+    </div>
+    <form class="setup" id="setupForm" hidden>
+      <div class="fields">
+        <label class="field s1" for="name-p1"><span class="lab"><span class="dot"></span><span id="lab-p1">Spieler 1</span></span><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"></label>
+        <label class="field s2" for="name-p2"><span class="lab"><span class="dot"></span><span id="lab-p2">Spieler 2</span></span><input id="name-p2" name="name-p2" maxlength="16" autocomplete="off" placeholder="Spieler 2"></label>
+      </div>
+      <button class="btn" type="submit">Spiel starten</button>
+      <p class="setup-note" id="setupNote"></p>
+    </form>
+    <div class="join" id="join" hidden>
+      <p id="joinText">Zwei Plätze am Tisch. Nimm einen, um zu beginnen.</p>
+      <form id="joinForm">
+        <input id="nick" name="nick" maxlength="16" autocomplete="nickname" placeholder="Dein Name" aria-label="Dein Name">
+        <button class="btn" type="submit" id="joinBtn">Platz nehmen</button>
+      </form>
+    </div>
+    <div class="share" id="reclaim" hidden>
+      <p>Beide Plätze sind besetzt. Neues Handy oder neuer Browser? Dann wähle deinen Platz:</p>
+      <div class="share-row" id="reclaimBtns"></div>
+    </div>
+    <div class="share" id="share" hidden>
+      <p>Schick diesen Link an die zweite Person. Damit kommt sie an euren Tisch.</p>
+      <div class="share-row">
+        <input id="shareUrl" readonly aria-label="Link zu eurem Tisch">
+        <button class="btn" type="button" id="shareBtn">Link senden</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad" aria-label="Spielblock">
+    <h2><span>Spielblock</span><span id="padNote"></span></h2>
+    <p class="padhint" id="padHint" hidden></p>
+    <table>
+      <colgroup><col class="c-name"><col class="c-p"><col class="c-p"></colgroup>
+      <thead><tr><th scope="col"></th><th scope="col" class="cell" data-seat="p1" id="h-p1"><span class="nm">Spieler 1</span><span class="tag"></span></th><th scope="col" class="cell" data-seat="p2" id="h-p2"><span class="nm">Spieler 2</span><span class="tag"></span></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <div class="foot">
+    <div class="row" id="footActions">
+      <button class="lnk" type="button" id="newGameBtn">Neues Spiel</button>
+      <button class="lnk danger" type="button" id="clearBtn">Plätze freigeben</button>
+      <button class="lnk" type="button" id="footShare" hidden>Link teilen</button>
+    </div>
+    <div class="confirm" id="confirm" hidden>
+      <span id="confirmText"></span>
+      <button class="lnk" type="button" id="confirmNo">Weiterspielen</button>
+      <button class="lnk danger" type="button" id="confirmYes">Ja</button>
+    </div>
+    <details>
+      <summary>Spielregeln</summary>
+      <ul>
+        <li>Pro Zug hast du drei Würfe. Tippe Würfel an, um sie zwischen den Würfen zu halten.</li>
+        <li>Einer bis Sechser: die Summe dieser Augenzahl. Mit 63 oder mehr Punkten im oberen Teil gibt es 50 Bonuspunkte.</li>
+        <li>Ein Paar, Zwei Paare, Dreier- und Viererpasch: die Summe dieser Würfel. Die zwei Paare müssen verschiedene Zahlen sein.</li>
+        <li>Kleine Strasse 1-2-3-4-5 gibt 15 Punkte, grosse Strasse 2-3-4-5-6 gibt 20.</li>
+        <li>Full House: drei gleiche und zwei andere gleiche Würfel. Gezählt wird die Summe aller Würfel.</li>
+        <li>Chance: die Summe aller Würfel. Yatzy, fünf gleiche Würfel: 50.</li>
+        <li>Passt nichts, musst du in einem Feld deiner Wahl eine 0 eintragen.</li>
+      </ul>
+    </details>
+    <p class="note" id="modeNote"></p>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<button class="note-love" id="love" type="button" hidden aria-live="polite"></button>
+
+<script type="module">
+// ===================================================================
+//  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
+//  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
+//  Diese Werte sind nicht geheim, sie dürfen öffentlich auf GitHub stehen.
+// ===================================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCmfxYWKbZspAReOav07it8TE25LPmjT0c",
+  authDomain: "yatzy-zu-zweit.firebaseapp.com",
+  projectId: "yatzy-zu-zweit",
+  storageBucket: "yatzy-zu-zweit.firebasestorage.app",
+  messagingSenderId: "1015637093983",
+  appId: "1:1015637093983:web:92c23df4a83a81891c35ea"
+};
+const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+
+(() => {
+  const CATS = [
+    {k:'ones',n:'Einer',up:1},{k:'twos',n:'Zweier',up:2},{k:'threes',n:'Dreier',up:3},
+    {k:'fours',n:'Vierer',up:4},{k:'fives',n:'Fünfer',up:5},{k:'sixes',n:'Sechser',up:6},
+    {k:'pair',n:'Ein Paar'},{k:'twopair',n:'Zwei Paare'},{k:'three',n:'Dreierpasch'},
+    {k:'four',n:'Viererpasch'},{k:'small',n:'Kleine Strasse',hint:'15'},{k:'large',n:'Grosse Strasse',hint:'20'},
+    {k:'house',n:'Full House'},{k:'chance',n:'Chance'},{k:'yatzy',n:'Yatzy',hint:'50'}
+  ];
+  const KEYS = CATS.map(c => c.k);
+  const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+  const SEATS = ['p1','p2'];
+  const other = s => s === 'p1' ? 'p2' : 'p1';
+
+  // ---------- scoring ----------
+  function score(k, dice){
+    const c = [0,0,0,0,0,0,0];
+    dice.forEach(d => c[d]++);
+    const sum = dice.reduce((a,b) => a+b, 0);
+    const withAtLeast = n => [6,5,4,3,2,1].filter(v => c[v] >= n);
+    switch(k){
+      case 'ones': case 'twos': case 'threes': case 'fours': case 'fives': case 'sixes': {
+        const v = CATS.find(x => x.k === k).up; return v * c[v];
+      }
+      case 'pair': { const p = withAtLeast(2); return p.length ? p[0]*2 : 0; }
+      case 'twopair': { const p = withAtLeast(2); return p.length >= 2 ? p[0]*2 + p[1]*2 : 0; }
+      case 'three': { const p = withAtLeast(3); return p.length ? p[0]*3 : 0; }
+      case 'four': { const p = withAtLeast(4); return p.length ? p[0]*4 : 0; }
+      case 'small': return [1,2,3,4,5].every(v => c[v] === 1) ? 15 : 0;
+      case 'large': return [2,3,4,5,6].every(v => c[v] === 1) ? 20 : 0;
+      case 'house': { const t = c.indexOf(3), p = c.indexOf(2); return t > 0 && p > 0 ? sum : 0; }
+      case 'chance': return sum;
+      case 'yatzy': return c.some(n => n === 5) ? 50 : 0;
+    }
+    return 0;
+  }
+  function totals(sc){
+    const upper = KEYS.slice(0,6).reduce((a,k) => a + (sc[k] ?? 0), 0);
+    const bonus = upper >= 63 ? 50 : 0;
+    const lower = KEYS.slice(6).reduce((a,k) => a + (sc[k] ?? 0), 0);
+    return {upper, bonus, total: upper + bonus + lower};
+  }
+  const filled = sc => KEYS.filter(k => sc[k] != null).length;
+
+  // ---------- state ----------
+  function blank(){
+    return {v:1, seats:{p1:null,p2:null}, status:'waiting', turn:'p1', starter:'p1',
+      dice:null, held:[false,false,false,false,false], rollsLeft:3, rollId:0,
+      scores:{p1:{},p2:{}}, last:null, history:[], updatedAt:''};
+  }
+  // Shared data is written by other viewers: never trust its shape.
+  function clean(raw){
+    const s = blank();
+    if (!raw || typeof raw !== 'object') return s;
+    const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
+    for (const seat of SEATS){
+      const v = raw.seats && raw.seats[seat];
+      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {id: v.id.slice(0,200), nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : ''};
+      const sc = raw.scores && raw.scores[seat];
+      if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
+    }
+    if (['waiting','setup','playing','over'].includes(raw.status)) s.status = raw.status;
+    if (SEATS.includes(raw.turn)) s.turn = raw.turn;
+    if (SEATS.includes(raw.starter)) s.starter = raw.starter;
+    if (Array.isArray(raw.dice) && raw.dice.length === 5 && raw.dice.every(d => int(d,1,6))) s.dice = raw.dice.slice();
+    if (Array.isArray(raw.held) && raw.held.length === 5) s.held = raw.held.map(Boolean);
+    if (int(raw.rollsLeft, 0, 3)) s.rollsLeft = raw.rollsLeft;
+    if (Number.isFinite(raw.rollId)) s.rollId = raw.rollId;
+    if (raw.last && SEATS.includes(raw.last.seat) && KEYS.includes(raw.last.cat) && int(raw.last.pts,0,50)) s.last = {seat: raw.last.seat, cat: raw.last.cat, pts: raw.last.pts};
+    if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-50).map(h => ({at: String(h.at || '').slice(0,40), p1: h.p1, p2: h.p2}));
+    if (typeof raw.updatedAt === 'string') s.updatedAt = raw.updatedAt.slice(0,40);
+    return s;
+  }
+  function resetTurn(s){ s.dice = null; s.held = [false,false,false,false,false]; s.rollsLeft = 3; }
+
+  let S = null;              // current game state (null = nobody has sat down yet)
+  let mode = 'connecting';   // 'connecting' | 'remote' | 'local'
+  let ref = null;
+  let myId = null, myName = '';
+  let canWrite = true;
+  let selected = null;
+  let lastRollId = null, lastWritten = null;
+  let joining = false;
+  let pendingConfirm = null;
+  let setupVisible = false;
+  let chain = Promise.resolve();
+
+  const $ = id => document.getElementById(id);
+
+  function mySeat(st = S){
+    if (!st) return null;
+    if (mode === 'local') return st.turn;
+    return SEATS.find(s => st.seats[s] && st.seats[s].id === myId) || null;
+  }
+  const isMyTurn = () => !!S && S.status === 'playing' && mySeat() === S.turn && canWrite;
+  function seatName(seat, st = S){
+    const v = st && st.seats[seat];
+    return (v && v.nick) || (seat === 'p1' ? 'Spieler 1' : 'Spieler 2');
+  }
+
+  // ---------- writes ----------
+  function commit(mutate){
+    chain = chain.then(async () => {
+      const base = S ? structuredClone(S) : blank();
+      if (mutate(base) === false) return;
+      base.updatedAt = new Date().toISOString();
+      const prev = S;
+      S = base; render();
+      if (mode === 'remote'){
+        try { await ref.set(base); }
+        catch(e){ S = prev; render(); writeFailed(e); }
+      } else if (mode === 'local') saveLocal();
+    });
+    return chain;
+  }
+  function writeFailed(e){
+    const code = e && e.code;
+    if (code === 'permission-denied'){
+      toast('Der Server hat den Zug abgelehnt. Prüfe die Firestore-Regeln (siehe README).');
+    } else {
+      toast('Der Zug wurde nicht gespeichert. Prüfe deine Verbindung und versuche es nochmals.');
+    }
+  }
+
+  const rand = () => { const a = new Uint32Array(1); crypto.getRandomValues(a); return (a[0] % 6) + 1; };
+
+  function roll(){
+    if (!isMyTurn() || S.rollsLeft <= 0) return;
+    selected = null;
+    commit(s => {
+      if (s.status !== 'playing' || s.rollsLeft <= 0) return false;
+      if (!s.dice) s.held = [false,false,false,false,false];
+      s.dice = [0,1,2,3,4].map(i => s.dice && s.held[i] ? s.dice[i] : rand());
+      s.rollsLeft -= 1; s.rollId += 1;
+    });
+  }
+  function toggleHold(i){
+    if (!isMyTurn() || !S.dice || S.rollsLeft <= 0) return;
+    commit(s => { if (!s.dice) return false; s.held[i] = !s.held[i]; });
+  }
+  // ---------- love notes for the player who isn't Marcel ----------
+  const NOTES = {
+    zero: ['Nüt? Macht nüt, Schatz. Du bisch trotzdem mi Houptgwinn.', 'Null Pünkt, aber hundert Pünkt für di Usgseh.', 'Chopf ufe, Schätzeli. Hüt Abe gits Troscht. 😉',
+      'Ou, das isch nüt worde. I tröschte di de nächär.', 'I love you, babe. Ou mit null Pünkt.', 'S Glück isch es Velo, es chunnt wieder. Und i bi eh scho da.'],
+    ok: ['Guet gmacht! Kuss!', 'Solid, Schatz. Wiiter so!', 'Geit doch! Es Müntschi für di.', 'Nid schlächt, Härzli. Gib em Marcel ja nüt gschänkt!',
+      'I love you, babe.', 'Brav gwürflet. Belohnig folgt. 😘'],
+    good: ['Wow, guet gmacht! Kuss!', 'Du bisch hüt heiss am Würfle. Nid nume am Würfle. 😉', 'Mega! Dr Marcel cha sech scho mau warm alege.',
+      'Gopf, du chasch das! Es dicks Müntschi.', 'So gfallsch mer. Und ou süsch. 😏', 'Läck, bisch du guet! I love you, babe.'],
+    top: ['Hammer! Das schreit nach emne Siegerküssli. 😘', 'Läck mir, so heiss wie dä Wurf bisch nume du.', 'Du bisch e Wahnsinn! Hüt Abe fiire mir das. 😏',
+      'Gopfriedstutz, was für ne Wurf! Chumm här, i wott di verchüsse.'],
+    yatzy: ['YATZY! Du bisch e Wahnsinn. Hüt Abe fiire mir. 😏', 'Füf glychi! Und für mi gits nume eini wi di. ❤', 'YATZY, Schatz! Dr Marcel lyt am Bode. I lige de nächär näb dir.'],
+    house: ['Full House! Und mis Härz isch ou ganz voll vo dir. ❤', 'Es volls Huus. Mir zwöi mache s de no gmüetlech drin. 😉'],
+    pair: ['Es Paar! Aber s schönschte Paar si mir zwöi.', 'Zwöi wo zämepasse. Chunnt mer bekannt vor. ❤'],
+    straight: ['E Strass! I fahr mit dir überall häre.', 'Grad düre, wi mir zwöi. Guet gmacht! Kuss!']
+  };
+  const MAX = {ones:5,twos:10,threes:15,fours:20,fives:25,sixes:30,pair:12,twopair:22,three:18,four:24,small:15,large:20,house:28,chance:30,yatzy:50};
+  let lastNote = '';
+  const isMarcel = seat => /^\s*marcel\b/i.test((S && S.seats[seat] && S.seats[seat].nick) || '');
+  function cheer(seat, cat, pts){
+    if (isMarcel(seat)) return;
+    const up = CATS.find(c => c.k === cat).up;
+    const ratio = pts / MAX[cat];
+    let pool, chance;
+    if (cat === 'yatzy' && pts) { pool = NOTES.yatzy; chance = 1; }
+    else if (!pts) { pool = NOTES.zero; chance = 0.6; }
+    else if ((cat === 'small' || cat === 'large') ) { pool = NOTES.straight.concat(NOTES.top); chance = 0.8; }
+    else if (cat === 'house' && Math.random() < 0.6) { pool = NOTES.house; chance = 0.7; }
+    else if ((cat === 'pair' || cat === 'twopair') && Math.random() < 0.4) { pool = NOTES.pair; chance = 0.6; }
+    else if (up ? pts >= up * 4 : ratio >= 0.8) { pool = NOTES.top; chance = 0.85; }
+    else if (up ? pts >= up * 3 : ratio >= 0.55) { pool = NOTES.good; chance = 0.55; }
+    else { pool = NOTES.ok; chance = 0.4; }
+    if (Math.random() > chance) return;
+    const options = pool.filter(t => t !== lastNote);
+    const text = options[Math.floor(Math.random() * options.length)];
+    lastNote = text;
+    const el = $('love');
+    el.textContent = text;
+    const from = document.createElement('small'); from.textContent = 'Vom Marcel · antippen zum Schliessen';
+    el.appendChild(from);
+    el.hidden = false;
+    clearTimeout(loveTimer); loveTimer = setTimeout(() => { el.hidden = true; }, 6500);
+  }
+  let loveTimer;
+
+  function writeScore(cat){
+    if (!isMyTurn() || !S.dice) return;
+    const seat = S.turn;
+    if (S.scores[seat][cat] == null) cheer(seat, cat, score(cat, S.dice));
+    selected = null;
+    commit(s => {
+      if (!s.dice || s.scores[seat][cat] != null || s.turn !== seat) return false;
+      const pts = score(cat, s.dice);
+      s.scores[seat][cat] = pts;
+      s.last = {seat, cat, pts};
+      if (filled(s.scores.p1) === 15 && filled(s.scores.p2) === 15){
+        s.status = 'over';
+        s.history = s.history.concat({at: new Date().toISOString(), p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total}).slice(-50);
+      } else {
+        s.turn = other(seat);
+      }
+      resetTurn(s);
+    });
+  }
+  function newGame(){
+    selected = null;
+    commit(s => {
+      s.scores = {p1:{},p2:{}}; s.last = null;
+      s.starter = other(s.starter); s.turn = s.starter;
+      s.status = (s.seats.p1 && s.seats.p2) || mode === 'local' ? 'setup' : 'waiting';
+      resetTurn(s);
+    });
+  }
+  function startGame(names){
+    commit(s => {
+      if (s.status !== 'setup') return false;
+      for (const seat of SEATS){
+        const id = s.seats[seat] ? s.seats[seat].id : 'local-' + seat;
+        s.seats[seat] = {id, nick: names[seat]};
+      }
+      s.status = 'playing'; s.turn = s.starter;
+      resetTurn(s);
+    });
+  }
+  function clearSeats(){
+    selected = null;
+    commit(s => {
+      const fresh = blank();
+      if (mode === 'local'){ fresh.status = 'setup'; fresh.history = s.history; }
+      Object.keys(s).forEach(k => delete s[k]);
+      Object.assign(s, fresh);
+    });
+  }
+  function join(nick){
+    if (mode !== 'remote' || joining) return;
+    nick = nick.trim().replace(/\s+/g,' ').slice(0,16);
+    joining = true; render();
+    chain = chain.then(async () => {
+      try {
+        // A transaction keeps two people from grabbing the same seat at once.
+        let full = false;
+        await ref.transact(raw => {
+          full = false;
+          const st = raw ? clean(raw) : blank();
+          if (mySeat(st)) return null;
+          const seat = !st.seats.p1 ? 'p1' : !st.seats.p2 ? 'p2' : null;
+          if (!seat){ full = true; return null; }
+          st.seats[seat] = {id: myId, nick};
+          if (st.seats.p1 && st.seats.p2 && st.status === 'waiting'){
+            st.status = 'setup'; st.turn = st.starter; resetTurn(st);
+          }
+          st.updatedAt = new Date().toISOString();
+          return st;
+        });
+        if (full) toast('Beide Plätze sind besetzt. Du kannst trotzdem zuschauen.');
+      } catch(e){ writeFailed(e); }
+      finally { joining = false; render(); }
+    });
+  }
+
+  // ---------- local pass-and-play ----------
+  const LS = 'yatzy-for-two-local';
+  function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify(S)); } catch(_) {} }
+  function startLocal(){
+    mode = 'local';
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(LS) || 'null'); } catch(_) {}
+    S = st ? clean(st) : blank();
+    const started = KEYS.some(k => S.scores.p1[k] != null || S.scores.p2[k] != null);
+    S.status = S.status === 'over' ? 'over' : started ? 'playing' : 'setup';
+    render();
+  }
+
+  // ---------- render ----------
+  function dieEl(i){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'die';
+    for (let p = 0; p < 9; p++){ const s = document.createElement('span'); s.className = 'p'; b.appendChild(s); }
+    const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'GEHALTEN'; b.appendChild(tag);
+    b.addEventListener('click', () => toggleHold(i));
+    return b;
+  }
+  const diceEls = [0,1,2,3,4].map(dieEl);
+  diceEls.forEach(d => $('dice').appendChild(d));
+
+  const rowEls = {};
+  function buildRows(){
+    const tb = $('rows');
+    const add = (cls, label, key) => {
+      const tr = document.createElement('tr');
+      if (cls) tr.className = cls;
+      const n = document.createElement('td'); n.className = 'name';
+      n.append(label.text);
+      if (label.hint){ const sm = document.createElement('small'); sm.textContent = label.hint; n.appendChild(sm); }
+      tr.appendChild(n);
+      const cells = {};
+      for (const seat of SEATS){ const td = document.createElement('td'); td.className = 'cell'; td.dataset.seat = seat; tr.appendChild(td); cells[seat] = td; }
+      tb.appendChild(tr);
+      rowEls[key] = {tr, cells};
+      if (!cls) n.addEventListener('click', () => pick(key));
+    };
+    CATS.slice(0,6).forEach(c => add('', {text:c.n}, c.k));
+    add('sub', {text:'Summe'}, '_sum');
+    add('sub', {text:'Bonus', hint:'63+ = 50'}, '_bonus');
+    add('gap', {text:''}, '_gap');
+    CATS.slice(6).forEach(c => add('', {text:c.n, hint:c.hint}, c.k));
+    add('total', {text:'Total'}, '_total');
+  }
+  buildRows();
+
+  function pick(k){
+    if (!isMyTurn() || !S.dice || S.scores[S.turn][k] != null) return;
+    selected = selected === k ? null : k;
+    render();
+  }
+
+  function setInk(td, seat, value, fresh){
+    const text = value === 0 ? '–' : String(value);
+    const cur = td.firstElementChild;
+    if (!fresh && cur && cur.classList.contains('ink') && cur.textContent === text) return;
+    td.textContent = '';
+    const s = document.createElement('span');
+    s.className = 'ink ' + seat + (fresh ? ' fresh' : '');
+    s.textContent = text;
+    td.appendChild(s);
+  }
+
+  function render(){
+    const st = S;
+    const me = mySeat();
+    const myTurn = isMyTurn();
+
+    // header + chips
+    const wins = {p1:0,p2:0};
+    (st ? st.history : []).forEach(h => { if (h.p1 > h.p2) wins.p1++; else if (h.p2 > h.p1) wins.p2++; });
+    $('series').textContent = st && st.history.length ? `Siege ${wins.p1} – ${wins.p2}` : '';
+    const pl = $('players'); pl.textContent = '';
+    const playing = !!st && st.status === 'playing';
+    const isMe = seat => mode === 'remote' && me === seat;
+    for (const seat of SEATS){
+      const taken = !!st && (!!st.seats[seat] || mode === 'local');
+      const active = playing && st.turn === seat;
+      const c = document.createElement('div');
+      c.className = 'chip' + (seat === 'p2' ? ' s2' : '') + (active ? ' turn' : playing ? ' idle' : '');
+      const role = document.createElement('span'); role.className = 'role';
+      role.textContent = !taken ? 'Freier Platz' : active ? 'Am Zug' : playing ? 'Wartet' : st.status === 'over' ? 'Endstand' : 'Bereit';
+      const line = document.createElement('div'); line.className = 'line';
+      const nm = document.createElement('span'); nm.className = 'nm';
+      const dot = document.createElement('span'); dot.className = 'dot';
+      const label = document.createElement('span'); label.className = 'label';
+      label.textContent = taken ? seatName(seat) : '—';
+      nm.append(dot, label);
+      if (isMe(seat)){ const y = document.createElement('span'); y.className = 'you'; y.textContent = 'Du'; nm.appendChild(y); }
+      const tot = document.createElement('span'); tot.className = 'tot';
+      tot.textContent = st ? totals(st.scores[seat]).total : 0;
+      line.append(nm, tot); c.append(role, line); pl.appendChild(c);
+      const th = $('h-' + seat);
+      th.classList.toggle('active', active);
+      th.firstElementChild.textContent = seatName(seat);
+      th.lastElementChild.textContent = [isMe(seat) ? 'Du' : '', active ? 'Am Zug' : ''].filter(Boolean).join(' · ');
+    }
+
+    // status: who is playing, then what to do
+    const status = $('status'); status.classList.remove('mine');
+    let main = '', sub = '';
+    if (mode === 'connecting') main = 'Der Tisch wird vorbereitet…';
+    else if (!st || st.status === 'waiting'){
+      const first = st && SEATS.find(s => st.seats[s]);
+      if (me){ main = 'Warten auf die zweite Person'; sub = 'Sobald sie den Link öffnet und Platz nimmt, geht es los.'; }
+      else main = first ? `${seatName(first)} wartet auf eine zweite Person` : 'Noch sitzt niemand am Tisch';
+    } else if (st.status === 'setup'){
+      if (mode === 'local' || (me && canWrite)){ main = 'Neues Spiel'; sub = 'Tragt eure Namen ein und startet das Spiel.'; }
+      else { main = 'Gleich geht es los'; sub = 'Die Namen werden eingetragen.'; }
+    } else if (st.status === 'over'){
+      const a = totals(st.scores.p1).total, b = totals(st.scores.p2).total;
+      const win = a > b ? 'p1' : 'p2';
+      main = a === b ? 'Unentschieden' : isMe(win) ? 'Du gewinnst!' : `${seatName(win)} gewinnt`;
+      sub = a === b ? `Beide haben ${a} Punkte.` : `${Math.max(a,b)} zu ${Math.min(a,b)} Punkte.`;
+    } else {
+      const lastTxt = st.last && st.last.seat !== st.turn ? `${seatName(st.last.seat)} hat ${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} eingetragen.` : '';
+      if (myTurn){
+        status.classList.add('mine');
+        main = mode === 'local' ? `${seatName(st.turn)} ist dran` : 'Du bist dran';
+        sub = st.rollsLeft === 3 ? (lastTxt || 'Würfle, um zu beginnen.') : st.rollsLeft === 0 ? 'Keine Würfe mehr. Wähle ein Feld in deiner Spalte.' : 'Tippe Würfel zum Halten an. Dann würfle nochmals oder wähle ein Feld.';
+      } else {
+        main = `${seatName(st.turn)} ist dran`;
+        sub = st.dice ? `Wurf ${3 - st.rollsLeft} von 3` : (lastTxt || 'Noch nicht gewürfelt.');
+      }
+    }
+    $('statusMain').textContent = main;
+    $('statusSub').textContent = sub;
+
+    // dice
+    const animate = st && lastRollId !== null && st.rollId !== lastRollId;
+    diceEls.forEach((el, i) => {
+      const v = st && st.dice ? st.dice[i] : 0;
+      el.classList.toggle('blank', !v);
+      el.classList.toggle('held', !!(v && st.held[i]));
+      [...el.querySelectorAll('.p')].forEach((p, j) => p.classList.toggle('on', !!v && PIPS[v].includes(j)));
+      el.disabled = !(myTurn && v && st.rollsLeft > 0);
+      el.setAttribute('aria-label', v ? `Würfel ${i+1}: ${v}${st.held[i] ? ', gehalten' : ''}` : `Würfel ${i+1}: noch nicht gewürfelt`);
+      el.setAttribute('aria-pressed', v && st.held[i] ? 'true' : 'false');
+      if (animate && !st.held[i]){ el.classList.remove('rolling'); void el.offsetWidth; el.classList.add('rolling'); }
+    });
+    if (st) lastRollId = st.rollId;
+
+    // rolls left + buttons
+    const rolls = $('rolls'); rolls.textContent = '';
+    const left = st ? st.rollsLeft : 3;
+    for (let i = 0; i < 3; i++){ const d = document.createElement('i'); if (i < left) d.className = 'on'; rolls.appendChild(d); }
+    const primary = $('primary'), cancel = $('cancel');
+    cancel.hidden = !selected;
+    primary.disabled = true;
+    if (st && st.status === 'over'){
+      primary.textContent = 'Nochmals spielen';
+      primary.disabled = !(mode === 'local' || (me && canWrite));
+    } else if (myTurn && selected){
+      const pts = score(selected, st.dice);
+      const name = CATS.find(c => c.k === selected).n;
+      primary.textContent = `${pts} bei ${name} eintragen`;
+      primary.disabled = false;
+    } else if (myTurn){
+      primary.textContent = st.rollsLeft === 0 ? 'Feld wählen' : st.rollsLeft === 3 ? 'Würfeln' : 'Nochmals würfeln';
+      primary.disabled = st.rollsLeft === 0;
+    } else if (st && st.status === 'playing'){
+      primary.textContent = `${seatName(st.turn)} ist dran`;
+    } else {
+      primary.textContent = 'Würfeln';
+    }
+    const inSetup = !!st && st.status === 'setup';
+    $('controls').hidden = inSetup || (mode === 'remote' && !me && !(st && st.status !== 'waiting'));
+    $('dice').hidden = inSetup;
+
+    // name form at the start of each game
+    const canSetup = inSetup && (mode === 'local' || (!!me && canWrite));
+    $('setupForm').hidden = !canSetup;
+    if (canSetup){
+      for (const seat of SEATS){
+        const inp = $('name-' + seat);
+        if (!setupVisible) delete inp.dataset.dirty;
+        const fallback = isMe(seat) && myName ? myName.split(' ')[0].slice(0,16) : '';
+        if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = (st.seats[seat] && st.seats[seat].nick) || fallback;
+        $('lab-' + seat).textContent = (isMe(seat) ? 'Du' : seat === 'p1' ? 'Spieler 1' : 'Spieler 2') + (st.starter === seat ? ' · beginnt' : '');
+      }
+      $('setupNote').textContent = mode === 'local' ? 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.' : 'Ihr könnt beide die Namen ändern. Wer zuerst auf «Spiel starten» tippt, legt los.';
+    }
+    setupVisible = canSetup;
+
+    // join card
+    const seatFree = !st || !st.seats.p1 || !st.seats.p2;
+    const showJoin = mode === 'remote' && !me && seatFree && canWrite;
+    $('join').hidden = !showJoin;
+    if (showJoin){
+      const nick = $('nick');
+      if (!nick.value && myName) nick.value = myName.split(' ')[0].slice(0,16);
+      $('joinBtn').disabled = joining;
+      $('joinBtn').textContent = joining ? 'Einen Moment…' : 'Platz nehmen';
+      const firstSeated = st && SEATS.find(s => st.seats[s]);
+      $('joinText').textContent = firstSeated ? `${seatName(firstSeated)} sitzt schon am Tisch. Nimm den anderen Platz, um zu beginnen.` : 'Zwei Plätze am Tisch. Nimm einen und schick dann den Link an die zweite Person.';
+    }
+
+    // score pad
+    for (const c of CATS){
+      const {tr, cells} = rowEls[c.k];
+      const clickable = myTurn && st.dice && st.scores[st.turn][c.k] == null;
+      tr.classList.toggle('clickable', !!clickable);
+      tr.classList.toggle('selected', selected === c.k && !!clickable);
+      for (const seat of SEATS){
+        const td = cells[seat];
+        const v = st ? st.scores[seat][c.k] : undefined;
+        if (v != null){
+          const fresh = st.last && st.last.seat === seat && st.last.cat === c.k && lastWritten !== st.updatedAt;
+          setInk(td, seat, v, fresh);
+        } else if (clickable && seat === st.turn){
+          td.textContent = '';
+          const b = document.createElement('button');
+          const pts = score(c.k, st.dice);
+          b.type = 'button';
+          b.className = 'opt' + (pts ? '' : ' zero');
+          const box = document.createElement('span'); box.className = 'box'; box.textContent = String(pts);
+          b.appendChild(box);
+          b.setAttribute('aria-label', `${c.n}: ${pts} eintragen`);
+          b.addEventListener('click', () => pick(c.k));
+          td.appendChild(b);
+        } else td.textContent = '';
+      }
+    }
+    for (const seat of SEATS){
+      const t = st ? totals(st.scores[seat]) : {upper:0,bonus:0,total:0};
+      const upFilled = st ? KEYS.slice(0,6).filter(k => st.scores[seat][k] != null).length : 0;
+      const sumTd = rowEls._sum.cells[seat];
+      if (upFilled) setInk(sumTd, seat, t.upper, false); else sumTd.textContent = '';
+      const bTd = rowEls._bonus.cells[seat];
+      if (t.bonus || upFilled === 6) setInk(bTd, seat, t.bonus, false); else bTd.textContent = '';
+      const totTd = rowEls._total.cells[seat];
+      if (st && filled(st.scores[seat])) setInk(totTd, seat, t.total, false); else totTd.textContent = '';
+      rowEls._gap.cells[seat].textContent = '';
+      for (const key in rowEls) rowEls[key].cells[seat].classList.toggle('active', playing && st.turn === seat);
+    }
+
+    // one line above the pad saying whose column is open
+    {
+      const hint = $('padHint');
+      const colour = s => s === 'p1' ? 'blaue' : 'rote';
+      let h = '';
+      if (playing){
+        const t = st.turn;
+        if (myTurn && mode === 'local') h = st.dice ? `${seatName(t)}: Tippe auf ein umrandetes Feld in der ${colour(t)}n Spalte.` : `${seatName(t)} trägt in der ${colour(t)}n Spalte ein. Zuerst würfeln.`;
+        else if (myTurn) h = st.dice ? 'Tippe auf ein umrandetes Feld in deiner Spalte, um die Punkte einzutragen.' : `Deine Spalte ist die ${colour(t)}. Würfle zuerst, dann kannst du eintragen.`;
+        else if (me) h = `${seatName(t)} trägt gerade ein. Deine ${colour(me)} Spalte ist gesperrt, bis du wieder dran bist.`;
+        else h = `Du schaust zu. ${seatName(t)} ist dran.`;
+        hint.style.setProperty('--seat', `var(--ink${t === 'p1' ? 1 : 2})`);
+      }
+      hint.hidden = !h;
+      hint.textContent = h;
+    }
+    if (st) lastWritten = st.updatedAt;
+    $('padNote').textContent = st && st.status === 'playing' ? `Runde ${Math.min(15, Math.min(filled(st.scores.p1), filled(st.scores.p2)) + 1)} von 15` : '';
+
+    // footer
+    const canManage = mode === 'local' || (!!me && canWrite);
+    $('footActions').hidden = !canManage || !!pendingConfirm;
+    $('confirm').hidden = !pendingConfirm;
+    $('modeNote').textContent =
+      mode === 'local' ? localReason
+      : mode === 'remote' ? 'Die Züge werden laufend zwischen beiden Handys synchronisiert. Ihr könnt die Seite schliessen und später weiterspielen, das Spiel wartet auf euch.'
+      : '';
+    const showShare = mode === 'remote' && !!me && !!st && st.status === 'waiting';
+    $('share').hidden = !showShare;
+    if (showShare) $('shareUrl').value = location.href;
+    $('footShare').hidden = mode !== 'remote';
+    // the same person on another device (or the home-screen app) takes their seat back
+    const showReclaim = mode === 'remote' && !me && !!st && !!st.seats.p1 && !!st.seats.p2;
+    $('reclaim').hidden = !showReclaim;
+    if (showReclaim){
+      const box = $('reclaimBtns'); box.textContent = '';
+      for (const seat of SEATS){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn'; b.style.flex = '1';
+        b.textContent = `Ich bin ${seatName(seat)}`;
+        b.addEventListener('click', () => commit(s => { if (!s.seats[seat]) return false; s.seats[seat].id = myId; }));
+        box.appendChild(b);
+      }
+    }
+  }
+
+  // ---------- events ----------
+  $('primary').addEventListener('click', () => {
+    if (S && S.status === 'over') return newGame();
+    if (selected) return writeScore(selected);
+    roll();
+  });
+  $('cancel').addEventListener('click', () => { selected = null; render(); });
+  $('love').addEventListener('click', () => { clearTimeout(loveTimer); $('love').hidden = true; });
+  for (const seat of SEATS) $('name-' + seat).addEventListener('input', e => { e.target.dataset.dirty = '1'; });
+  $('setupForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const n = seat => $('name-' + seat).value.trim().replace(/\s+/g, ' ').slice(0, 16);
+    startGame({p1: n('p1'), p2: n('p2')});
+  });
+  $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value); });
+  function ask(text, fn){ pendingConfirm = fn; $('confirmText').textContent = text; render(); }
+  $('newGameBtn').addEventListener('click', () => ask('Neues Spiel starten? Der aktuelle Spielstand geht verloren.', newGame));
+  $('clearBtn').addEventListener('click', () => ask('Beide Plätze und die Siegesbilanz löschen? Danach müssen sich alle neu hinsetzen.', clearSeats));
+  $('confirmNo').addEventListener('click', () => { pendingConfirm = null; render(); });
+  $('confirmYes').addEventListener('click', () => { const fn = pendingConfirm; pendingConfirm = null; fn && fn(); render(); });
+
+  let toastTimer;
+  function toast(t){
+    const el = $('toast'); el.textContent = t; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 4500);
+  }
+
+  function deviceId(){
+    try {
+      let id = localStorage.getItem('yatzy-device');
+      if (!id){ id = 'dev-' + crypto.getRandomValues(new Uint32Array(2)).join('-'); localStorage.setItem('yatzy-device', id); }
+      return id;
+    } catch(_) { return 'dev-' + crypto.getRandomValues(new Uint32Array(2)).join('-'); }
+  }
+
+  // ---------- boot ----------
+  // ---------- room from the link ----------
+  // Each table lives at its own hard-to-guess address (#raum-…), remembered on this device.
+  const ROOM_RE = /^[a-z0-9-]{8,40}$/;
+  function roomId(){
+    let r = (location.hash || '').replace(/^#/, '').toLowerCase();
+    if (!ROOM_RE.test(r)){
+      try { r = localStorage.getItem('yatzy-room') || ''; } catch(_) { r = ''; }
+      if (!ROOM_RE.test(r)) r = 'raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('');
+      history.replaceState(null, '', '#' + r);
+    }
+    try { localStorage.setItem('yatzy-room', r); } catch(_) {}
+    return r;
+  }
+  addEventListener('hashchange', () => location.reload());
+
+  async function shareLink(){
+    const url = location.href;
+    if (navigator.share){
+      try { await navigator.share({title: 'Yatzy zu zweit', text: 'Spielst du eine Runde Yatzy mit mir?', url}); return; }
+      catch(e){ if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); toast('Link kopiert. Füge ihn in eine Nachricht ein.'); }
+    catch(_) { const i = $('shareUrl'); i.hidden = false; i.select(); toast('Markiere den Link und kopiere ihn.'); }
+  }
+  $('shareBtn').addEventListener('click', shareLink);
+  $('footShare').addEventListener('click', shareLink);
+
+  let localReason = 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.';
+
+  // ---------- boot ----------
+  async function boot(){
+    myId = deviceId();
+    render();
+    if (!FIREBASE_CONFIG.projectId){
+      localReason = 'Die Synchronisation ist noch nicht eingerichtet (Firebase fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
+      return startLocal();
+    }
+    let fb, fs;
+    try { [fb, fs] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')]); }
+    catch(_){
+      localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
+      return startLocal();
+    }
+    const store = fs.getFirestore(fb.initializeApp(FIREBASE_CONFIG));
+    const r = fs.doc(store, 'games', roomId());
+    const wrap = s => ({exists: s.exists(), data: () => s.data()});
+    ref = {
+      set: data => fs.setDoc(r, data),
+      get: async () => wrap(await fs.getDoc(r)),
+      transact: fn => fs.runTransaction(store, async tx => {
+        const cur = await tx.get(r);
+        const next = fn(cur.exists() ? cur.data() : null);
+        if (next) tx.set(r, next);
+      }),
+      onSnapshot: (next, err) => fs.onSnapshot(r, s => next(wrap(s)), err)
+    };
+    mode = 'remote';
+    render();
+    const subscribe = () => ref.onSnapshot(
+      snap => { S = snap.exists ? clean(snap.data()) : null; if (selected && (!isMyTurn() || !S.dice)) selected = null; render(); },
+      err => {
+        if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu. Prüfe die Firestore-Regeln (siehe README).');
+        else { toast('Die Verbindung ist unterbrochen. Ich versuche es gleich nochmals.'); setTimeout(subscribe, 4000); }
+      }
+    );
+    subscribe();
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

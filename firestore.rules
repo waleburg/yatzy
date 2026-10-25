@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Yatzy zu zweit: Jeder Tisch ist ein Dokument unter /games/<raum>.
+// Ohne Anmeldung: Wer den Raum-Link kennt, kann mitspielen.
+// Alles andere (andere Sammlungen, Räume auflisten, Löschen) ist gesperrt.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{room} {
+      allow get: if room.matches('^[a-z0-9-]{8,40}$');
+      allow list: if false;
+      allow create, update: if room.matches('^[a-z0-9-]{8,40}$')
+        && request.resource.data.v == 1
+        && request.resource.data.keys().hasOnly([
+             'v', 'seats', 'status', 'turn', 'starter', 'dice', 'held',
+             'rollsLeft', 'rollId', 'scores', 'last', 'history', 'updatedAt'
+           ]);
+      allow delete: if false;
+    }
+  }
+}
