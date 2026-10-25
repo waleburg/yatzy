@@ -129,6 +129,9 @@ button{font:inherit;color:inherit}
 .field .lab{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--felt-muted)}
 .field .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .field input{border-color:var(--seat)}
+.brand{-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.setup:not(.secret) .pick{display:none}
+.confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
 .pick{display:flex;gap:8px}
 .emo{flex:1;min-height:44px;border-radius:12px;border:1.5px solid rgba(255,255,255,.22);background:rgba(0,0,0,.18);font-size:22px;line-height:1;cursor:pointer;opacity:.5;transition:opacity .15s, border-color .15s, background .15s}
 .emo[aria-pressed="true"]{opacity:1;border-color:var(--gold);background:rgba(227,167,47,.2)}
@@ -717,6 +720,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       el.setAttribute('aria-pressed', v && st.held[i] ? 'true' : 'false');
       if (animate && !st.held[i]){ el.classList.remove('rolling'); void el.offsetWidth; el.classList.add('rolling'); }
     });
+    if (animate && st.dice && st.dice.every(d => d === st.dice[0])) setTimeout(() => { confetti(); chime(SOUND_YATZY); }, 450);
     if (st) lastRollId = st.rollId;
 
     // rolls left + buttons
@@ -750,6 +754,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const canSetup = inSetup && (mode === 'local' || (!!me && canWrite));
     $('setupForm').hidden = !canSetup;
     if (canSetup){
+      $('setupForm').classList.toggle('secret', secret);
       if (!setupVisible) setupEmoji = {p1: (st.seats.p1 && st.seats.p1.emoji) || '', p2: (st.seats.p2 && st.seats.p2.emoji) || ''};
       document.querySelectorAll('.emo').forEach(b => b.setAttribute('aria-pressed', setupEmoji[b.dataset.seat] === b.dataset.emo ? 'true' : 'false'));
       for (const seat of SEATS){
@@ -971,6 +976,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   }
   const SOUND_TURN = [[784, 0], [1175, 0.16]];                          // two notes: your turn
   const SOUND_JOIN = [[659, 0], [784, 0.12], [988, 0.24]];              // partner sat down
+  const SOUND_YATZY = [[523, 0], [659, 0.1], [784, 0.2], [1047, 0.3], [1319, 0.45]]; // fanfare
   const SOUND_OVER = [[523, 0], [659, 0.15], [784, 0.3], [1047, 0.45]]; // game over
   function notifyChange(prev, next){
     if (mode !== 'remote' || !prev || !next) return;
@@ -1002,6 +1008,57 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     wakeBusy = false;
   }
   document.addEventListener('visibilitychange', () => { if (S) render(); });
+
+  // ---------- secret: tap the die logo three times to show the 🥦/💚 picker ----------
+  let secret = false;
+  try { secret = localStorage.getItem('yatzy-secret') === 'on'; } catch(_) {}
+  let taps = [];
+  document.querySelector('.brand').addEventListener('click', () => {
+    const now = Date.now();
+    taps = taps.filter(t => now - t < 900).concat(now);
+    if (taps.length < 3) return;
+    taps = [];
+    secret = !secret;
+    try { localStorage.setItem('yatzy-secret', secret ? 'on' : 'off'); } catch(_) {}
+    toast(secret ? '🥦💚 freigeschaltet. Wähle dein Symbol im Namensformular.' : '🥦💚 wieder versteckt.');
+    render();
+  });
+
+  // ---------- confetti when five dice match ----------
+  function confetti(){
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = document.createElement('canvas');
+    c.className = 'confetti'; c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c);
+    const dpr = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+    c.width = W * dpr; c.height = H * dpr;
+    const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const colors = ['--gold', '--ink1', '--ink2', '--on-felt1', '--on-felt2', '--love-bg'].map(v => css.getPropertyValue(v).trim()).concat('#4fbf6b');
+    const parts = Array.from({length: 150}, (_, i) => ({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.3,
+      vx: (Math.random() - 0.5) * 10, vy: -Math.random() * 11 - 4,
+      r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+      color: colors[i % colors.length],
+      emoji: i % 15 === 0 ? ['🥦', '💚'][(i / 15) % 2] : null
+    }));
+    const t0 = performance.now();
+    const frame = t => {
+      const age = t - t0;
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalAlpha = Math.max(0, 1 - Math.max(0, age - 2300) / 800);
+      for (const p of parts){
+        p.vy += 0.25; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+        if (p.emoji){ ctx.font = '22px serif'; ctx.fillText(p.emoji, -11, 8); }
+        else { ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)) + 2); }
+        ctx.restore();
+      }
+      if (age < 3100) requestAnimationFrame(frame); else c.remove();
+    };
+    requestAnimationFrame(frame);
+  }
 
   // ---------- boot ----------
   async function boot(){
