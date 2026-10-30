@@ -568,6 +568,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const isMarcel = seat => /^\s*marcel\b/i.test((S && S.seats[seat] && S.seats[seat].nick) || '');
   function cheer(seat, cat, pts){
     const o = other(seat);
+    if (!loveTeam(S, o)) return;   // notes only go from a 💚 player to a 🥦 partner
     const custom = (S.seats[o] && S.seats[o].notes) || [];
     if (custom.length && (isMarcel(seat) || Math.random() < 0.5)){
       if (Math.random() > (cat === 'yatzy' && pts ? 1 : 0.5)) return;
