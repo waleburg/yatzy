@@ -346,6 +346,10 @@ details li{margin:3px 0}
 <button class="note-love" id="love" type="button" hidden aria-live="polite"></button>
 
 <script type="module">
+import {
+  CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
+  rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats
+} from './game.js';
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
 //  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
@@ -362,101 +366,12 @@ const FIREBASE_CONFIG = {
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
 (() => {
-  const CATS = [
-    {k:'ones',n:'Einer',up:1},{k:'twos',n:'Zweier',up:2},{k:'threes',n:'Dreier',up:3},
-    {k:'fours',n:'Vierer',up:4},{k:'fives',n:'Fünfer',up:5},{k:'sixes',n:'Sechser',up:6},
-    {k:'pair',n:'Ein Paar'},{k:'twopair',n:'Zwei Paare'},{k:'three',n:'Dreierpasch'},
-    {k:'four',n:'Viererpasch'},{k:'small',n:'Kleine Strasse',hint:'15'},{k:'large',n:'Grosse Strasse',hint:'20'},
-    {k:'house',n:'Full House'},{k:'chance',n:'Chance'},{k:'yatzy',n:'Yatzy',hint:'50'}
-  ];
-  const KEYS = CATS.map(c => c.k);
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
-  const SEATS = ['p1','p2'];
-  const EMOJIS = ['🥦','💚'];
-  const REACTIONS = [['😂','Lachen'], ['😍','Verliebt'], ['😘','Kuss'], ['🙄','Genervt'], ['😡','Wütend'], ['😱','Schockiert'], ['👏','Applaus']];
-  const REACT_SET = REACTIONS.map(r => r[0]);
-  const other = s => s === 'p1' ? 'p2' : 'p1';
-
-  // ---------- scoring ----------
-  function score(k, dice){
-    const c = [0,0,0,0,0,0,0];
-    dice.forEach(d => c[d]++);
-    const sum = dice.reduce((a,b) => a+b, 0);
-    const withAtLeast = n => [6,5,4,3,2,1].filter(v => c[v] >= n);
-    switch(k){
-      case 'ones': case 'twos': case 'threes': case 'fours': case 'fives': case 'sixes': {
-        const v = CATS.find(x => x.k === k).up; return v * c[v];
-      }
-      case 'pair': { const p = withAtLeast(2); return p.length ? p[0]*2 : 0; }
-      case 'twopair': { const p = withAtLeast(2); return p.length >= 2 ? p[0]*2 + p[1]*2 : 0; }
-      case 'three': { const p = withAtLeast(3); return p.length ? p[0]*3 : 0; }
-      case 'four': { const p = withAtLeast(4); return p.length ? p[0]*4 : 0; }
-      case 'small': return [1,2,3,4,5].every(v => c[v] === 1) ? 15 : 0;
-      case 'large': return [2,3,4,5,6].every(v => c[v] === 1) ? 20 : 0;
-      case 'house': { const t = c.indexOf(3), p = c.indexOf(2); return t > 0 && p > 0 ? sum : 0; }
-      case 'chance': return sum;
-      case 'yatzy': return c.some(n => n === 5) ? 50 : 0;
-    }
-    return 0;
-  }
-  function totals(sc){
-    const upper = KEYS.slice(0,6).reduce((a,k) => a + (sc[k] ?? 0), 0);
-    const bonus = upper >= 63 ? 50 : 0;
-    const lower = KEYS.slice(6).reduce((a,k) => a + (sc[k] ?? 0), 0);
-    return {upper, bonus, total: upper + bonus + lower};
-  }
-  const filled = sc => KEYS.filter(k => sc[k] != null).length;
-
-  // ---------- state ----------
-  function blank(){
-    return {v:1, seats:{p1:null,p2:null}, status:'waiting', turn:'p1', starter:'p1',
-      dice:null, held:[false,false,false,false,false], rollsLeft:3, rollId:0,
-      scores:{p1:{},p2:{}}, last:null, history:[], updatedAt:''};
-  }
-  // Shared data is written by other viewers: never trust its shape.
-  function clean(raw){
-    const s = blank();
-    if (!raw || typeof raw !== 'object') return s;
-    const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
-    for (const seat of SEATS){
-      const v = raw.seats && raw.seats[seat];
-      if (v && typeof v.id === 'string' && v.id) s.seats[seat] = {
-        id: v.id.slice(0,200),
-        nick: typeof v.nick === 'string' ? v.nick.slice(0,16) : '',
-        emoji: EMOJIS.includes(v.emoji) ? v.emoji : '',
-        react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null,
-        notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : []
-      };
-      const sc = raw.scores && raw.scores[seat];
-      if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
-    }
-    if (['waiting','setup','playing','over'].includes(raw.status)) s.status = raw.status;
-    if (SEATS.includes(raw.turn)) s.turn = raw.turn;
-    if (SEATS.includes(raw.starter)) s.starter = raw.starter;
-    if (Array.isArray(raw.dice) && raw.dice.length === 5 && raw.dice.every(d => int(d,1,6))) s.dice = raw.dice.slice();
-    if (Array.isArray(raw.held) && raw.held.length === 5) s.held = raw.held.map(Boolean);
-    if (int(raw.rollsLeft, 0, 3)) s.rollsLeft = raw.rollsLeft;
-    if (Number.isFinite(raw.rollId)) s.rollId = raw.rollId;
-    if (raw.last && SEATS.includes(raw.last.seat) && KEYS.includes(raw.last.cat) && int(raw.last.pts,0,50)){
-      const u = raw.last;
-      s.last = {seat: u.seat, cat: u.cat, pts: u.pts};
-      // what the dice looked like before the entry, so it can be undone
-      if (Array.isArray(u.dice) && u.dice.length === 5 && u.dice.every(d => int(d,1,6)) && Array.isArray(u.held) && u.held.length === 5 && int(u.rollsLeft,0,2))
-        Object.assign(s.last, {dice: u.dice.slice(), held: u.held.map(Boolean), rollsLeft: u.rollsLeft, over: !!u.over});
-    }
-    const str = (x, n) => typeof x === 'string' ? x.slice(0, n) : '';
-    if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-50)
-      .map(h => ({at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,1) ? h.y1 : 0, y2: int(h.y2,0,1) ? h.y2 : 0}));
-    if (typeof raw.updatedAt === 'string') s.updatedAt = raw.updatedAt.slice(0,40);
-    return s;
-  }
-  function resetTurn(s){ s.dice = null; s.held = [false,false,false,false,false]; s.rollsLeft = 3; }
 
   let S = null;              // current game state (null = nobody has sat down yet)
   let mode = 'connecting';   // 'connecting' | 'remote' | 'local'
   let ref = null;
-  let myId = null, myName = '';
-  let canWrite = true;
+  let myId = null;
   let selected = null;
   let lastRollId = null, lastWritten = null, lastStatus = null;
   let netCached = false, hadServer = false, wasOffline = false;
@@ -473,11 +388,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (mode === 'local') return st.turn;
     return SEATS.find(s => st.seats[s] && st.seats[s].id === myId) || null;
   }
-  const isMyTurn = () => !!S && S.status === 'playing' && mySeat() === S.turn && canWrite;
-  function seatName(seat, st = S){
-    const v = st && st.seats[seat];
-    return (v && v.nick) || (seat === 'p1' ? 'Spieler 1' : 'Spieler 2');
-  }
+  const isMyTurn = () => !!S && S.status === 'playing' && mySeat() === S.turn;
+  const seatName = (seat, st = S) => nameOf(seat, st);
   function seatLabel(seat, st = S){
     const v = st && st.seats[seat];
     return (v && v.emoji ? v.emoji + ' ' : '') + seatName(seat, st);
@@ -536,18 +448,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!isMyTurn() || S.rollsLeft <= 0) return;
     selected = null;
     const fresh = [0,1,2,3,4].map(rand);
-    commit(s => {
-      if (s.status !== 'playing' || s.rollsLeft <= 0) return false;
-      if (!s.dice) s.held = [false,false,false,false,false];
-      s.dice = [0,1,2,3,4].map(i => s.dice && s.held[i] ? s.dice[i] : fresh[i]);
-      s.rollsLeft -= 1; s.rollId += 1;
-    });
+    commit(s => rollDice(s, fresh));
   }
   function toggleHold(i){
     if (!isMyTurn() || !S.dice || S.rollsLeft <= 0) return;
-    commit(s => { if (!s.dice) return false; s.held[i] = !s.held[i]; });
+    commit(s => toggleHeld(s, i));
   }
-  // ---------- love notes for the player who isn't Marcel ----------
+  // ---------- love notes from the 💚 player to a 🥦 partner ----------
   const NOTES = {
     zero: ['Nüt? Macht nüt, Babe. Du bisch trotzdem mi Houptgwinn.', 'Null Pünkt, aber hundert Pünkt für dis Usgseh.', 'Chopf ufe, Babe. Hüt Abe gits Troscht. 😉',
       'Ou, das isch nüt worde. I tröschte di de nächär.', 'I love you, babe. Ou mit null Pünkt.', 'S Glück isch es Velo, es chunnt wieder. Und i bi eh scho da.'],
@@ -606,63 +513,27 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const seat = S.turn;
     if (S.scores[seat][cat] == null) cheer(seat, cat, score(cat, S.dice));
     selected = null;
-    commit(s => {
-      if (!s.dice || s.scores[seat][cat] != null || s.turn !== seat) return false;
-      const pts = score(cat, s.dice);
-      s.scores[seat][cat] = pts;
-      s.last = {seat, cat, pts, dice: s.dice.slice(), held: s.held.slice(), rollsLeft: s.rollsLeft, over: false};
-      if (filled(s.scores.p1) === 15 && filled(s.scores.p2) === 15){
-        s.status = 'over'; s.last.over = true;
-        s.history = s.history.concat({
-          at: new Date().toISOString(), p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
-          n1: seatName('p1', s), n2: seatName('p2', s), y1: s.scores.p1.yatzy === 50 ? 1 : 0, y2: s.scores.p2.yatzy === 50 ? 1 : 0
-        }).slice(-50);
-      } else {
-        s.turn = other(seat);
-      }
-      resetTurn(s);
-    });
+    commit(s => enterScore(s, seat, cat));
   }
   // The last entry can be taken back until the other person has rolled.
+  function undoSeat(st){ return mode === 'remote' ? mySeat(st) : null; }
   function canUndo(st = S){
-    if (!st || !st.last || !st.last.dice || !canWrite) return false;
-    const L = st.last;
-    if (mode === 'remote' && mySeat(st) !== L.seat) return false;
-    if (st.status === 'over') return L.over;
-    return st.status === 'playing' && st.turn === other(L.seat) && !st.dice && st.rollsLeft === 3;
+    if (mode === 'remote' && !mySeat(st)) return false;
+    return undoAllowed(st, undoSeat(st));
   }
   function undo(){
     if (!canUndo()) return;
     selected = null;
-    commit(s => {
-      if (!canUndo(s)) return false;
-      const L = s.last;
-      delete s.scores[L.seat][L.cat];
-      if (L.over) s.history = s.history.slice(0, -1);
-      s.status = 'playing'; s.turn = L.seat;
-      s.dice = L.dice; s.held = L.held; s.rollsLeft = L.rollsLeft;
-      s.last = null;
-    }, true);
+    const seat = undoSeat(S);
+    commit(s => undoEntry(s, seat), true);
   }
   function newGame(){
     selected = null;
-    commit(s => {
-      s.scores = {p1:{},p2:{}}; s.last = null;
-      s.starter = other(s.starter); s.turn = s.starter;
-      s.status = (s.seats.p1 && s.seats.p2) || mode === 'local' ? 'setup' : 'waiting';
-      resetTurn(s);
-    }, true);
+    const onePhone = mode === 'local';
+    commit(s => newRound(s, onePhone), true);
   }
   function startGame(names, emojis){
-    commit(s => {
-      if (s.status !== 'setup') return false;
-      for (const seat of SEATS){
-        const id = s.seats[seat] ? s.seats[seat].id : 'local-' + seat;
-        s.seats[seat] = Object.assign({react: null, notes: []}, s.seats[seat], {id, nick: names[seat], emoji: emojis[seat] || ''});
-      }
-      s.status = 'playing'; s.turn = s.starter;
-      resetTurn(s);
-    }, true);
+    commit(s => beginGame(s, names, emojis), true);
   }
   function clearSeats(){
     selected = null;
@@ -688,9 +559,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
           const seat = !st.seats.p1 ? 'p1' : !st.seats.p2 ? 'p2' : null;
           if (!seat){ full = true; return null; }
           st.seats[seat] = {id: myId, nick};
-          if (st.seats.p1 && st.seats.p2 && st.status === 'waiting'){
-            st.status = 'setup'; st.turn = st.starter; resetTurn(st);
-          }
+          if (st.seats.p1 && st.seats.p2 && st.status === 'waiting'){ st.status = 'setup'; st.turn = st.starter; }
           st.updatedAt = new Date().toISOString();
           return st;
         });
@@ -811,7 +680,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       if (me){ main = 'Warten auf die zweite Person'; sub = 'Sobald sie den Link öffnet und Platz nimmt, geht es los.'; }
       else main = first ? `${seatName(first)} wartet auf eine zweite Person` : 'Noch sitzt niemand am Tisch';
     } else if (st.status === 'setup'){
-      if (mode === 'local' || (me && canWrite)){ main = 'Neues Spiel'; sub = 'Tragt eure Namen ein und startet das Spiel.'; }
+      if (mode === 'local' || me){ main = 'Neues Spiel'; sub = 'Tragt eure Namen ein und startet das Spiel.'; }
       else { main = 'Gleich geht es los'; sub = 'Die Namen werden eingetragen.'; }
     } else if (st.status === 'over'){
       const a = totals(st.scores.p1).total, b = totals(st.scores.p2).total;
@@ -859,7 +728,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     primary.disabled = true;
     if (st && st.status === 'over'){
       primary.textContent = 'Revanche';
-      primary.disabled = !(mode === 'local' || (me && canWrite));
+      primary.disabled = !(mode === 'local' || me);
     } else if (myTurn && selected){
       const pts = score(selected, st.dice);
       const name = CATS.find(c => c.k === selected).n;
@@ -883,7 +752,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     document.querySelector('.tray').classList.toggle('static', !playing);
 
     // name form at the start of each game
-    const canSetup = inSetup && (mode === 'local' || (!!me && canWrite));
+    const canSetup = inSetup && (mode === 'local' || !!me);
     $('setupForm').hidden = !canSetup;
     if (canSetup){
       $('setupForm').classList.toggle('secret', secret);
@@ -892,8 +761,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       for (const seat of SEATS){
         const inp = $('name-' + seat);
         if (!setupVisible) delete inp.dataset.dirty;
-        const fallback = isMe(seat) && myName ? myName.split(' ')[0].slice(0,16) : '';
-        if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = (st.seats[seat] && st.seats[seat].nick) || fallback;
+        if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = (st.seats[seat] && st.seats[seat].nick) || '';
         $('lab-' + seat).textContent = (isMe(seat) ? 'Du' : seat === 'p1' ? 'Spieler 1' : 'Spieler 2') + (st.starter === seat ? ' · beginnt' : '');
       }
       $('setupNote').textContent = mode === 'local' ? 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.' : 'Ihr könnt beide die Namen ändern. Wer zuerst auf «Spiel starten» tippt, legt los.';
@@ -902,11 +770,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
     // join card
     const seatFree = !st || !st.seats.p1 || !st.seats.p2;
-    const showJoin = mode === 'remote' && !me && seatFree && canWrite;
+    const showJoin = mode === 'remote' && !me && seatFree;
     $('join').hidden = !showJoin;
     if (showJoin){
       const nick = $('nick');
-      if (!nick.value && myName) nick.value = myName.split(' ')[0].slice(0,16);
       $('joinBtn').disabled = joining;
       $('joinBtn').textContent = joining ? 'Einen Moment…' : 'Platz nehmen';
       const firstSeated = st && SEATS.find(s => st.seats[s]);
@@ -977,7 +844,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('padNote').textContent = st && st.status === 'playing' ? `Runde ${Math.min(15, Math.min(filled(st.scores.p1), filled(st.scores.p2)) + 1)} von 15` : '';
 
     // footer
-    const canManage = mode === 'local' || (!!me && canWrite);
+    const canManage = mode === 'local' || !!me;
     $('footActions').hidden = !canManage || !!pendingConfirm;
     $('confirm').hidden = !pendingConfirm;
     $('modeNote').textContent =
@@ -1051,16 +918,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const H = st ? st.history : [];
     box.hidden = !H.length;
     if (!H.length) return;
-    const per = {p1: {wins: 0, best: 0, sum: 0, y: 0}, p2: {wins: 0, best: 0, sum: 0, y: 0}};
-    let draws = 0, streak = {seat: null, n: 0};
-    for (const h of H){
-      for (const seat of SEATS){ const v = h[seat]; per[seat].best = Math.max(per[seat].best, v); per[seat].sum += v; }
-      per.p1.y += h.y1; per.p2.y += h.y2;
-      const w = h.p1 === h.p2 ? null : h.p1 > h.p2 ? 'p1' : 'p2';
-      if (!w){ draws++; streak = {seat: null, n: 0}; continue; }
-      per[w].wins++;
-      streak = streak.seat === w ? {seat: w, n: streak.n + 1} : {seat: w, n: 1};
-    }
+    const {per, avg, draws, streak} = computeStats(H);
     const out = $('stats'); out.textContent = '';
     const table = document.createElement('table'); table.className = 'stats-table';
     const head = document.createElement('tr');
@@ -1074,7 +932,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const rows = [
       ['Siege', per.p1.wins, per.p2.wins],
       ['Höchste Punktzahl', per.p1.best, per.p2.best],
-      ['Durchschnitt', Math.round(per.p1.sum / H.length), Math.round(per.p2.sum / H.length)],
+      ['Durchschnitt', avg.p1, avg.p2],
       ['Yatzys', per.p1.y, per.p2.y]
     ];
     for (const r of rows){
@@ -1103,11 +961,6 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
   // ---------- own love notes (hidden; unlocked with the same three taps on the logo) ----------
   let notesShownFor = null;
-  // Only the 💚 player gets the box, and only with a 🥦 partner (by symbol or in the name).
-  function loveTeam(st, me){
-    const mine = st.seats[me], theirs = st.seats[other(me)];
-    return !!mine && !!theirs && mine.emoji === '💚' && (theirs.emoji === '🥦' || (theirs.nick || '').includes('🥦'));
-  }
   function renderNotes(st, me){
     const show = secret && mode === 'remote' && !!me && !!st && !!st.seats[me] && loveTeam(st, me);
     $('notesBox').hidden = !show;
@@ -1397,7 +1250,6 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     ref = {
       set: data => fs.setDoc(r, data),
       update: patch => fs.updateDoc(r, patch),
-      get: async () => wrap(await fs.getDoc(r)),
       transact: fn => fs.runTransaction(store, async tx => {
         const cur = await tx.get(r);
         const next = fn(cur.exists() ? cur.data() : null);

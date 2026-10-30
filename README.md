@@ -6,7 +6,9 @@ Yatzy für zwei Personen auf zwei Handys, mit skandinavischen Regeln. Die Seite 
 
 | Datei | Wozu |
 |---|---|
-| `index.html` | Das ganze Spiel. Oben im Skript steht der Block `FIREBASE_CONFIG`. |
+| `index.html` | Die Seite: Darstellung, Ton, Firebase. Oben im Skript steht der Block `FIREBASE_CONFIG`. |
+| `game.js` | Die Spielregeln: Punkte, Würfeln, Eintragen, Rückgängig, Statistik. |
+| `tests/game.test.mjs` | Tests für die Spielregeln. |
 | `firestore.rules` | Die Zugriffsregeln, die du in Firebase einfügst. |
 | `README.md` | Diese Anleitung. |
 | `manifest.webmanifest`, `icon.svg`, `*.png` | Name und Icon für den Home-Bildschirm. |
@@ -69,3 +71,11 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 - **Wer den Raum-Link kennt, kann mitspielen.** Teilt ihn also nur untereinander. Einen neuen, leeren Tisch bekommst du, wenn du die Seite ohne `#raum-…` in einem privaten Safari-Fenster öffnest.
 - **Der Gratis-Tarif von Firebase («Spark») reicht locker.** Er erlaubt 50'000 Lese- und 20'000 Schreibvorgänge pro Tag. Ein Spiel braucht etwa 100 bis 200 Schreibvorgänge.
 - **Ohne eingetragene Firebase-Werte läuft die Seite trotzdem**, dann aber nur auf einem Handy. Ihr gebt es nach jedem Zug weiter.
+
+## Tests
+
+Die Spielregeln in `game.js` haben eigene Tests. Sie brauchen nur Node.js (ab Version 18), sonst nichts:
+
+```bash
+node --test
+```
