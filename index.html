@@ -484,46 +484,45 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   }
 
   // ---------- writes ----------
-  // A move shows on screen at once. At a shared table the same change then runs as a
-  // Firestore transaction on the latest server state, so two phones never overwrite each other.
-  // Until our own write comes back, snapshots only update serverS, not the screen.
-  let serverS = null, inflight = 0, awaiting = null, awaitTimer = null;
-  function applyServer(){
-    clearTimeout(awaitTimer); awaiting = null;
-    const prev = S; S = serverS;
+  // Moves within your own turn (roll, hold, enter a score) only touch fields the other phone
+  // leaves alone, so they go out as plain field updates: Firestore shows them at once and keeps
+  // them in order, even offline. Actions where both phones could clash (new game, names, seats,
+  // undo) run as a transaction on the latest server state and show once the server confirms.
+  function applyServer(next){
+    const prev = S; S = next;
     notifyChange(prev, S);
     if (selected && (!isMyTurn() || !S || !S.dice)) selected = null;
     render();
   }
-  function commit(mutate){
-    const local = S ? structuredClone(S) : blank();
-    if (mutate(local) === false) return;
+  function commit(mutate, safe = false){
     const stamp = new Date().toISOString() + '~' + Math.random().toString(36).slice(2, 6);
-    local.updatedAt = stamp;
-    S = local; render();
+    if (mode === 'remote' && safe){
+      chain = chain
+        .then(() => ref.transact(raw => {
+          const cur = raw ? clean(raw) : blank();
+          if (mutate(cur) === false) return null;
+          cur.updatedAt = stamp;
+          return cur;
+        }))
+        .then(wrote => { if (!wrote) toast('Das ging nicht mehr: Der Spielstand hat sich inzwischen geändert.'); })
+        .catch(writeFailed);
+      return;
+    }
+    const before = S;
+    const next = S ? structuredClone(S) : blank();
+    if (mutate(next) === false) return;
+    next.updatedAt = stamp;
+    S = next; render();
     if (mode === 'local'){ saveLocal(); return; }
     if (mode !== 'remote') return;
-    inflight++; awaiting = stamp;
-    let ok = false;
-    chain = chain
-      .then(() => ref.transact(raw => {
-        const cur = raw ? clean(raw) : blank();
-        if (mutate(cur) === false) return null;
-        cur.updatedAt = stamp;
-        return cur;
-      }))
-      .then(wrote => { ok = wrote; if (!wrote) toast('Das ging nicht mehr: Der Spielstand hat sich inzwischen geändert.'); })
-      .catch(writeFailed)
-      .finally(() => {
-        if (--inflight) return;
-        if (!ok || (serverS && serverS.updatedAt === awaiting)) return applyServer();
-        clearTimeout(awaitTimer); awaitTimer = setTimeout(applyServer, 1500);   // our snapshot is on its way
-      });
+    const patch = {};
+    for (const k of Object.keys(next)) if (!before || JSON.stringify(next[k]) !== JSON.stringify(before[k])) patch[k] = next[k];
+    ref.update(patch).catch(writeFailed);
   }
   function writeFailed(e){
     const code = e && e.code;
     if (!navigator.onLine || code === 'unavailable' || code === 'failed-precondition'){
-      toast('Keine Verbindung. Der Zug wurde nicht gespeichert, versuch es gleich nochmals.');
+      toast('Keine Verbindung. Das ging gerade nicht, versuch es gleich nochmals.');
     } else if (code === 'permission-denied'){
       toast('Der Server hat den Zug abgelehnt. Prüfe die Firestore-Regeln (siehe README).');
     } else {
@@ -643,7 +642,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       s.status = 'playing'; s.turn = L.seat;
       s.dice = L.dice; s.held = L.held; s.rollsLeft = L.rollsLeft;
       s.last = null;
-    });
+    }, true);
   }
   function newGame(){
     selected = null;
@@ -652,7 +651,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       s.starter = other(s.starter); s.turn = s.starter;
       s.status = (s.seats.p1 && s.seats.p2) || mode === 'local' ? 'setup' : 'waiting';
       resetTurn(s);
-    });
+    }, true);
   }
   function startGame(names, emojis){
     commit(s => {
@@ -663,7 +662,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       }
       s.status = 'playing'; s.turn = s.starter;
       resetTurn(s);
-    });
+    }, true);
   }
   function clearSeats(){
     selected = null;
@@ -672,7 +671,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       if (mode === 'local'){ fresh.status = 'setup'; fresh.history = s.history; }
       Object.keys(s).forEach(k => delete s[k]);
       Object.assign(s, fresh);
-    });
+    }, true);
   }
   function join(nick){
     if (mode !== 'remote' || joining) return;
@@ -992,7 +991,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && st.status !== 'waiting');
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
-    if (offline && !wasOffline) toast('Keine Verbindung. Sobald du wieder online bist, geht es weiter.');
+    if (offline && !wasOffline) toast('Keine Verbindung. Deine Züge werden gesendet, sobald du wieder online bist.');
     wasOffline = offline;
     renderStats(st);
     renderNotes(st, me);
@@ -1005,7 +1004,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'btn'; b.style.flex = '1';
         b.textContent = `Ich bin ${seatName(seat)}`;
-        b.addEventListener('click', () => commit(s => { if (!s.seats[seat]) return false; s.seats[seat].id = myId; }));
+        b.addEventListener('click', () => commit(s => { if (!s.seats[seat]) return false; s.seats[seat].id = myId; }, true));
         box.appendChild(b);
       }
     }
@@ -1412,9 +1411,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const subscribe = () => ref.onSnapshot(
       snap => {
         netCached = snap.cached; if (!snap.cached) hadServer = true;
-        serverS = snap.exists ? clean(snap.data()) : null;
-        if (inflight || (awaiting && (!serverS || serverS.updatedAt !== awaiting))) return render();   // keep our move on screen until it lands
-        applyServer();
+        applyServer(snap.exists ? clean(snap.data()) : null);
       },
       err => {
         if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu. Prüfe die Firestore-Regeln (siehe README).');

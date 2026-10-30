@@ -62,9 +62,9 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 ## Gut zu wissen
 
 - **Rückgängig:** Hast du dich vertippt, kannst du deinen letzten Eintrag zurücknehmen, solange die andere Person noch nicht gewürfelt hat. Das gilt auch für den allerletzten Eintrag eines Spiels.
-- **Offline:** Hat ein Handy keine Verbindung, erscheint oben ein rotes «Offline». Züge werden dann nicht gespeichert. Sobald die Verbindung zurück ist, geht es normal weiter.
+- **Offline:** Hat ein Handy keine Verbindung, erscheint oben ein rotes «Offline». Würfeln, Halten und Eintragen werden gesendet, sobald die Verbindung zurück ist. «Neues Spiel», Plätze und «Rückgängig» gehen erst wieder online.
 - **Statistik:** Unten auf der Seite findest du Siege, Höchst- und Durchschnittspunkte, Yatzys und die letzten Spiele.
-- **Gleichzeitige Züge:** Jeder Zug wird als Transaktion gespeichert. Tippen beide Handys gleichzeitig, kann keins die Änderung des anderen überschreiben.
+- **Gleichzeitige Aktionen:** «Neues Spiel», Namen, Plätze und «Rückgängig» werden als Transaktion gespeichert, damit kein Handy die Änderung des anderen überschreibt. Würfeln, Halten und Eintragen ändern nur die Felder des aktuellen Zugs und erscheinen sofort.
 - **Ton:** Wenn du dran bist, spielt ein kurzer Gong. Auch wenn die zweite Person Platz nimmt und wenn das Spiel vorbei ist, hörst du einen Ton. Oben rechts schaltest du ihn mit «Ton an/aus» um. Damit der Gong zu hören ist, bleibt der Bildschirm während des Spiels an. Ist das iPhone gesperrt oder die Seite im Hintergrund, kommt kein Ton. Beim lautlosen iPhone (Schalter auf stumm) kann der Ton auch ausbleiben.
 - **Wer den Raum-Link kennt, kann mitspielen.** Teilt ihn also nur untereinander. Einen neuen, leeren Tisch bekommst du, wenn du die Seite ohne `#raum-…` in einem privaten Safari-Fenster öffnest.
 - **Der Gratis-Tarif von Firebase («Spark») reicht locker.** Er erlaubt 50'000 Lese- und 20'000 Schreibvorgänge pro Tag. Ein Spiel braucht etwa 100 bis 200 Schreibvorgänge.
