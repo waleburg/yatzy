@@ -113,16 +113,19 @@ export function enterScore(s, seat, cat, at = new Date().toISOString()){
   const pts = score(cat, s.dice);
   s.scores[seat][cat] = pts;
   s.last = {seat, cat, pts, dice: s.dice.slice(), held: s.held.slice(), rollsLeft: s.rollsLeft, over: false};
-  if (filled(s.scores.p1) === 15 && filled(s.scores.p2) === 15){
-    s.status = 'over'; s.last.over = true;
-    s.history = s.history.concat({
-      at, p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
-      n1: nameOf('p1', s), n2: nameOf('p2', s), y1: s.scores.p1.yatzy === 50 ? 1 : 0, y2: s.scores.p2.yatzy === 50 ? 1 : 0
-    }).slice(-HISTORY_MAX);
-  } else {
-    s.turn = other(seat);
-  }
+  if (finishIfFull(s, at)) s.last.over = true;
+  else s.turn = other(seat);
   resetTurn(s);
+}
+// Once both columns are full the game is over and goes into the history.
+function finishIfFull(s, at){
+  if (filled(s.scores.p1) < 15 || filled(s.scores.p2) < 15) return false;
+  s.status = 'over';
+  s.history = s.history.concat({
+    at, p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
+    n1: nameOf('p1', s), n2: nameOf('p2', s), y1: s.scores.p1.yatzy === 50 ? 1 : 0, y2: s.scores.p2.yatzy === 50 ? 1 : 0
+  }).slice(-HISTORY_MAX);
+  return true;
 }
 // The last entry can be taken back until the other person has rolled.
 // `seat` is who asks; null means anyone (one phone passed around).
@@ -156,6 +159,64 @@ export function beginGame(s, names, emojis){
   }
   s.status = 'playing'; s.turn = s.starter;
   resetTurn(s);
+}
+
+// ---------- paper sheet (real dice on the table) ----------
+// Every score a box can hold with five dice, 0 included (a box can always be scratched).
+export function boxOptions(cat){
+  const c = CATS.find(x => x.k === cat);
+  if (!c) return [];
+  const set = new Set([0]);
+  if (c.up) for (let n = 1; n <= 5; n++) set.add(n * c.up);
+  for (let a = 1; a <= 6; a++){
+    if (cat === 'pair') set.add(2 * a);
+    if (cat === 'three') set.add(3 * a);
+    if (cat === 'four') set.add(4 * a);
+    for (let b = 1; b <= 6; b++){
+      if (cat === 'twopair' && b > a) set.add(2 * a + 2 * b);
+      if (cat === 'house' && b !== a) set.add(3 * a + 2 * b);
+    }
+  }
+  if (cat === 'small') set.add(15);
+  if (cat === 'large') set.add(20);
+  if (cat === 'yatzy') set.add(50);
+  if (cat === 'chance') for (let v = 5; v <= 30; v++) set.add(v);
+  return [...set].sort((x, y) => x - y);
+}
+// Like writing on paper: any box, in any order, and it can be changed later (pts null empties it).
+// The turn is only a suggestion: whoever has fewer boxes filled, the starter on a tie.
+export function markBox(s, seat, cat, pts, at = new Date().toISOString()){
+  if (!['playing', 'over'].includes(s.status) || !SEATS.includes(seat) || !KEYS.includes(cat)) return false;
+  if (pts !== null && !boxOptions(cat).includes(pts)) return false;
+  if (s.status === 'over'){
+    // A correction reopens the game. A changed value finishes it again at once and keeps its
+    // time, which identifies the game when its result is synced to the online table.
+    if (pts !== null) at = s.history[s.history.length - 1].at;
+    s.status = 'playing'; s.history = s.history.slice(0, -1);
+  }
+  if (pts === null){ delete s.scores[seat][cat]; s.last = null; }
+  else { s.scores[seat][cat] = pts; s.last = {seat, cat, pts}; }
+  const a = filled(s.scores.p1), b = filled(s.scores.p2);
+  s.turn = a === b ? s.starter : a < b ? 'p1' : 'p2';
+  finishIfFull(s, at);
+  resetTurn(s);
+}
+// Paper results that the online table doesn't have yet (or has with other values),
+// merged into its history. Seats are matched by name, since either player may be "Spieler 1".
+export function mergeResults(room, results){
+  const norm = t => (t || '').replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+  const nick = seat => norm(room.seats[seat] && room.seats[seat].nick);
+  const history = room.history.slice();
+  let changed = 0;
+  for (const h of results){
+    const swap = !!(norm(h.n1) && norm(h.n1) === nick('p2')) || !!(norm(h.n2) && norm(h.n2) === nick('p1'));
+    const e = swap ? {at: h.at, p1: h.p2, p2: h.p1, n1: h.n2, n2: h.n1, y1: h.y2, y2: h.y1} : {...h};
+    const i = history.findIndex(x => x.at === e.at);
+    if (i < 0){ history.push(e); changed++; }
+    else if (JSON.stringify(history[i]) !== JSON.stringify(e)){ history[i] = e; changed++; }
+  }
+  history.sort((x, y) => x.at < y.at ? -1 : x.at > y.at ? 1 : 0);
+  return {history: history.slice(-HISTORY_MAX), changed};
 }
 
 // ---------- extras ----------

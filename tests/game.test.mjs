@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   KEYS, score, totals, blank, clean, rollDice, toggleHeld, enterScore,
-  undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats
+  undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
+  boxOptions, markBox, mergeResults
 } from '../game.js';
 
 // A game in progress: both seats taken, p1's turn, dice already rolled once.
@@ -187,4 +188,72 @@ test('stats count wins, draws, Yatzys and the current streak', () => {
   assert.deepEqual(st.streak, {seat: null, n: 0}, 'a draw ends the streak');
   assert.deepEqual(computeStats([h(1, 2), h(1, 3)]).streak, {seat: 'p2', n: 2});
   assert.deepEqual(computeStats([]).avg, {p1: 0, p2: 0});
+});
+
+// A paper-sheet game: same seats, but nobody rolls on screen.
+function paperGame(){ const s = game({dice: null, rollsLeft: 3}); s.held = [false, false, false, false, false]; return s; }
+
+test('the paper sheet only offers scores five dice can make', () => {
+  assert.deepEqual(boxOptions('threes'), [0, 3, 6, 9, 12, 15]);
+  assert.deepEqual(boxOptions('twopair'), [0, 6, 8, 10, 12, 14, 16, 18, 20, 22]);
+  assert.deepEqual(boxOptions('small'), [0, 15]);
+  assert.deepEqual(boxOptions('yatzy'), [0, 50]);
+  const house = boxOptions('house');
+  assert.equal(house[1], 7, '1-1-1-2-2');
+  assert.equal(house[house.length - 1], 28, '6-6-6-5-5');
+  assert.ok(!house.includes(5) && !house.includes(30), 'five of a kind is no full house');
+  assert.equal(boxOptions('chance').length, 27);
+  assert.deepEqual(boxOptions('nope'), []);
+});
+
+test('on the paper sheet any box can be written, changed and emptied', () => {
+  const s = paperGame();
+  markBox(s, 'p2', 'house', 19);
+  assert.equal(s.scores.p2.house, 19);
+  assert.equal(s.turn, 'p1', 'whoever has fewer boxes filled is next');
+  assert.equal(markBox(s, 'p1', 'house', 6), false, 'a full house of 6 is impossible');
+  markBox(s, 'p2', 'house', 0);
+  assert.equal(s.scores.p2.house, 0);
+  markBox(s, 'p2', 'house', null);
+  assert.equal(s.scores.p2.house, undefined);
+  assert.equal(s.last, null);
+  assert.equal(s.turn, 'p1', 'a tie goes to the starter');
+});
+
+test('a full paper sheet ends the game, and a correction keeps its time', () => {
+  const s = paperGame();
+  fillAllBut(s.scores.p1);
+  fillAllBut(s.scores.p2, 'yatzy');
+  markBox(s, 'p2', 'yatzy', 50, '2026-10-31T20:00:00.000Z');
+  assert.equal(s.status, 'over');
+  assert.deepEqual(s.history, [{at: '2026-10-31T20:00:00.000Z', p1: 15, p2: 64, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1}]);
+
+  markBox(s, 'p1', 'chance', 20, '2026-10-31T21:00:00.000Z');
+  assert.equal(s.status, 'over', 'changing a value finishes the game again');
+  assert.equal(s.history.length, 1);
+  assert.equal(s.history[0].at, '2026-10-31T20:00:00.000Z');
+  assert.equal(s.history[0].p1, 34);
+
+  markBox(s, 'p1', 'chance', null);
+  assert.equal(s.status, 'playing', 'an emptied box reopens it');
+  assert.equal(s.history.length, 0);
+});
+
+test('paper results merge into the online history by name and time', () => {
+  const room = blank();
+  room.seats.p1 = {id: 'a', nick: '💚 Marcel'};
+  room.seats.p2 = {id: 'b', nick: 'Brokkoli'};
+  room.history = [{at: '2026-10-30T10:00:00.000Z', p1: 200, p2: 210, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 0}];
+  // on the paper sheet Brokkoli sat in the first column
+  const paper = {at: '2026-10-31T20:00:00.000Z', p1: 250, p2: 190, n1: 'Brokkoli 🥦', n2: 'Marcel', y1: 1, y2: 0};
+  const a = mergeResults(room, [paper]);
+  assert.equal(a.changed, 1);
+  assert.deepEqual(a.history[1], {at: paper.at, p1: 190, p2: 250, n1: 'Marcel', n2: 'Brokkoli 🥦', y1: 0, y2: 1});
+
+  room.history = a.history;
+  assert.equal(mergeResults(room, [paper]).changed, 0, 'sending the same game twice adds nothing');
+  const fixed = mergeResults(room, [{...paper, p1: 260}]);
+  assert.equal(fixed.changed, 1);
+  assert.equal(fixed.history.length, 2, 'a corrected game replaces its entry');
+  assert.equal(fixed.history[1].p2, 260);
 });

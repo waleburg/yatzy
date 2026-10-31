@@ -8,6 +8,7 @@ Yatzy für zwei Personen auf zwei Handys, mit skandinavischen Regeln. Die Seite 
 |---|---|
 | `index.html` | Die Seite: Darstellung, Ton, Firebase. Oben im Skript steht der Block `FIREBASE_CONFIG`. |
 | `game.js` | Die Spielregeln: Punkte, Würfeln, Eintragen, Rückgängig, Statistik. |
+| `sw.js` | Speichert die Seite auf dem Handy, damit sie auch ohne Internet startet. |
 | `tests/game.test.mjs` | Tests für die Spielregeln. |
 | `firestore.rules` | Die Zugriffsregeln, die du in Firebase einfügst. |
 | `README.md` | Diese Anleitung. |
@@ -63,6 +64,9 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 
 ## Gut zu wissen
 
+- **Mit echten Würfeln:** Unten auf der Seite wechselst du mit «🎲 Mit echten Würfeln spielen» zum Spielblock. Ihr würfelt am Tisch, tippt auf ein Feld und wählt die Punkte. Angeboten werden nur Werte, die mit fünf Würfeln möglich sind. Eingetragenes kannst du antippen und ändern oder leeren. Der Block wird nur auf diesem Handy gespeichert, funktioniert ganz ohne Internet und hält den Bildschirm an. Die Adresse dafür ist `…/#papier`. Mit «Zurück zum Online-Spiel» kommst du wieder an euren Tisch.
+- **Ergebnisse vom Spielblock:** Fertige Spiele kommen in die Statistik des Online-Tisches, den dieses Handy zuletzt geöffnet hat. Ohne Verbindung geschieht das automatisch, sobald das Handy wieder online ist. Die Spieler werden über die Namen zugeordnet, nennt euch also gleich wie am Online-Tisch. Korrigierst du ein fertiges Spiel nachträglich, wird der Eintrag in der Statistik ersetzt.
+- **Ohne Internet starten:** Die Seite wird beim ersten Öffnen auf dem Handy gespeichert. Danach startet sie auch ohne Verbindung, am besten über das Icon auf dem Home-Bildschirm.
 - **Rückgängig:** Hast du dich vertippt, kannst du deinen letzten Eintrag zurücknehmen, solange die andere Person noch nicht gewürfelt hat. Das gilt auch für den allerletzten Eintrag eines Spiels.
 - **Offline:** Hat ein Handy keine Verbindung, erscheint oben ein rotes «Offline». Würfeln, Halten und Eintragen werden gesendet, sobald die Verbindung zurück ist. «Neues Spiel», Plätze und «Rückgängig» gehen erst wieder online.
 - **Statistik:** Unten auf der Seite findest du Siege, Höchst- und Durchschnittspunkte, Yatzys und die letzten Spiele.

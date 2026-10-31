@@ -210,6 +210,24 @@ tr.gap td{height:8px;border-bottom:2px solid var(--grid-strong);background:color
 tr.selected td{background:var(--sel)}
 tr.selected .opt .box{border-style:solid;border-color:var(--seat);background:var(--seat);color:var(--paper);font-weight:700}
 tr.clickable td.name{cursor:pointer}
+td.cell.tap{cursor:pointer}
+.opt.empty .box{min-height:28px}
+
+/* ---------- value picker for the paper sheet ---------- */
+.sheet{position:fixed;inset:0;z-index:22;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,20,30,.45)}
+.sheet-card{--seat:var(--ink1);width:min(520px,100%);padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  background:var(--paper);color:var(--fg);border-radius:18px 18px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.25);animation:sheet .22s ease-out}
+@keyframes sheet{from{transform:translateY(40px);opacity:0}}
+@media (prefers-reduced-motion: reduce){.sheet-card{animation:none}}
+.sheet-head{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.sheet-head strong{font-size:18px;color:var(--seat)}
+.sheet-head span{font-size:13px;color:var(--muted)}
+.vals{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px;max-height:46vh;overflow:auto;padding:2px}
+.val{min-height:48px;border-radius:10px;border:2px solid var(--seat);background:var(--paper);color:var(--seat);font-family:var(--font-pen);font-size:22px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+.val.zero{grid-column:span 2;border-color:var(--pencil);color:var(--pencil);font-size:18px;font-weight:400}
+.val[aria-pressed="true"]{background:var(--seat);border-color:var(--seat);color:var(--paper)}
+.sheet .row{display:flex;gap:8px;margin-top:14px}
+.sheet .row .lnk{flex:1}
 
 /* ---------- footer ---------- */
 .foot{margin-top:18px;display:flex;flex-direction:column;gap:12px;font-size:14px;color:var(--muted)}
@@ -317,6 +335,7 @@ details li{margin:3px 0}
       <button class="lnk" type="button" id="confirmNo">Weiterspielen</button>
       <button class="lnk danger" type="button" id="confirmYes">Ja</button>
     </div>
+    <div class="row"><button class="lnk" type="button" id="viewBtn"></button></div>
     <details id="statsBox" hidden>
       <summary>Statistik</summary>
       <div id="stats"></div>
@@ -342,13 +361,24 @@ details li{margin:3px 0}
     <p class="note" id="modeNote"></p>
   </div>
 </div>
+<div class="sheet" id="picker" hidden>
+  <div class="sheet-card" id="pickCard" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="sheet-head"><strong id="pickTitle"></strong><span id="pickSub"></span></div>
+    <div class="vals" id="pickVals"></div>
+    <div class="row">
+      <button class="lnk danger" type="button" id="pickClear">Feld leeren</button>
+      <button class="lnk" type="button" id="pickClose">Abbrechen</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 <button class="note-love" id="love" type="button" hidden aria-live="polite"></button>
 
 <script type="module">
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
-  rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats
+  rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
+  boxOptions, markBox, mergeResults
 } from './game.js';
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
@@ -370,6 +400,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
   let S = null;              // current game state (null = nobody has sat down yet)
   let mode = 'connecting';   // 'connecting' | 'remote' | 'local'
+  let paper = false;         // local mode as a paper sheet: real dice on the table, no dice on screen
   let ref = null;
   let myId = null;
   let selected = null;
@@ -570,7 +601,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   }
 
   // ---------- local pass-and-play ----------
-  const LS = 'yatzy-for-two-local';
+  let LS = 'yatzy-for-two-local';
   function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify(S)); } catch(_) {} }
   function startLocal(){
     mode = 'local';
@@ -581,6 +612,91 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     S.status = S.status === 'over' ? 'over' : started ? 'playing' : 'setup';
     render();
   }
+
+  // ---------- paper sheet: real dice, this phone keeps score, works offline ----------
+  function startPaper(){
+    paper = true;
+    LS = 'yatzy-paper';
+    localReason = 'Ihr würfelt mit echten Würfeln, das Handy ist euer Spielblock. Er funktioniert auch ohne Internet und wird nur auf diesem Handy gespeichert. Fertige Spiele kommen in die Statistik eures Online-Tisches, sobald es eine Verbindung gibt.';
+    if (location.hash !== '#papier') history.replaceState(null, '', '#papier');
+    startLocal();
+    syncPaper();
+  }
+  let picking = null;
+  function openPicker(seat, cat){
+    if (!paper || !S || !['playing', 'over'].includes(S.status)) return;
+    picking = {seat, cat};
+    const c = CATS.find(x => x.k === cat), cur = S.scores[seat][cat];
+    $('pickCard').style.setProperty('--seat', `var(--ink${seat === 'p1' ? 1 : 2})`);
+    $('pickTitle').textContent = `${c.n} · ${seatLabel(seat)}`;
+    $('pickSub').textContent = cur != null ? `Eingetragen: ${cur || '–'}. Wähle einen anderen Wert oder leere das Feld.` : 'Wie viele Punkte?';
+    const box = $('pickVals'); box.textContent = '';
+    for (const v of boxOptions(cat)){
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'val' + (v ? '' : ' zero');
+      b.textContent = v ? String(v) : '0 · streichen';
+      b.setAttribute('aria-pressed', cur === v ? 'true' : 'false');
+      b.addEventListener('click', () => choose(v));
+      box.appendChild(b);
+    }
+    $('pickClear').hidden = cur == null;
+    $('picker').hidden = false;
+    (box.querySelector('[aria-pressed="true"]') || box.querySelector('.val:not(.zero)') || box.firstElementChild).focus({preventScroll: true});
+  }
+  function closePicker(){ picking = null; $('picker').hidden = true; }
+  function choose(pts){
+    if (!picking) return;
+    const {seat, cat} = picking;
+    closePicker();
+    const fresh = S.scores[seat][cat] == null && pts != null;
+    commit(s => markBox(s, seat, cat, pts));
+    if (fresh){
+      cheer(seat, cat, pts);
+      if (cat === 'yatzy' && pts === 50){ confetti(); chime(SOUND_YATZY); }
+    }
+    if (S.status === 'over') syncPaper();
+  }
+  $('pickClear').addEventListener('click', () => choose(null));
+  $('pickClose').addEventListener('click', closePicker);
+  $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && picking) closePicker(); });
+
+  // Finished paper games go into the history of the online table remembered on this phone.
+  // Each game is known by its end time; this phone notes what it has sent, so a game is
+  // sent again only if it was corrected afterwards.
+  let syncing = false;
+  async function syncPaper(){
+    if (syncing || !navigator.onLine || !FIREBASE_CONFIG.projectId) return;
+    const read = k => { try { return localStorage.getItem(k); } catch(_) { return null; } };
+    const room = read('yatzy-room');
+    let sent = {};
+    try { sent = JSON.parse(read('yatzy-paper-sent') || '{}') || {}; } catch(_) {}
+    let local = null;
+    try { local = clean(JSON.parse(read('yatzy-paper') || 'null')); } catch(_) {}
+    const todo = local ? local.history.filter(h => sent[h.at] !== JSON.stringify(h)) : [];
+    if (!ROOM_RE.test(room || '') || !todo.length) return;
+    syncing = true;
+    try {
+      const [fb, fs] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')]);
+      const app = fb.getApps()[0] || fb.initializeApp(FIREBASE_CONFIG);
+      const store = fs.getFirestore(app);
+      const r = fs.doc(store, 'games', room);
+      const changed = await fs.runTransaction(store, async tx => {
+        const cur = await tx.get(r);
+        if (!cur.exists()) return -1;
+        const merged = mergeResults(clean(cur.data()), todo);
+        if (merged.changed) tx.update(r, {history: merged.history, updatedAt: new Date().toISOString()});
+        return merged.changed;
+      });
+      if (changed < 0) return;
+      for (const h of todo) sent[h.at] = JSON.stringify(h);
+      try { localStorage.setItem('yatzy-paper-sent', JSON.stringify(sent)); } catch(_) {}
+      if (changed) toast(changed === 1 ? 'Das Spiel mit echten Würfeln ist jetzt in der Statistik eures Online-Tisches.' : `${changed} Spiele mit echten Würfeln sind jetzt in der Statistik eures Online-Tisches.`);
+    } catch(_) {
+      // offline or not allowed: try again next time
+    } finally { syncing = false; }
+  }
+  addEventListener('online', syncPaper);
 
   // ---------- render ----------
   function dieEl(i){
@@ -605,7 +721,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       if (label.hint){ const sm = document.createElement('small'); sm.textContent = label.hint; n.appendChild(sm); }
       tr.appendChild(n);
       const cells = {};
-      for (const seat of SEATS){ const td = document.createElement('td'); td.className = 'cell'; td.dataset.seat = seat; tr.appendChild(td); cells[seat] = td; }
+      for (const seat of SEATS){
+        const td = document.createElement('td'); td.className = 'cell'; td.dataset.seat = seat; tr.appendChild(td); cells[seat] = td;
+        if (!cls) td.addEventListener('click', () => { if (paper) openPicker(seat, key); });
+      }
       tb.appendChild(tr);
       rowEls[key] = {tr, cells};
       if (!cls) n.addEventListener('click', () => pick(key));
@@ -689,7 +808,11 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       sub = '';
     } else {
       const lastTxt = st.last && st.last.seat !== st.turn ? `${seatName(st.last.seat)} hat ${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} eingetragen.` : '';
-      if (myTurn){
+      if (paper){
+        status.classList.add('mine');
+        main = `${seatLabel(st.turn)} ist dran`;
+        sub = lastTxt || 'Würfelt mit echten Würfeln und tragt die Punkte im Block ein.';
+      } else if (myTurn){
         status.classList.add('mine');
         main = mode === 'local' ? `${seatLabel(st.turn)} ist dran` : 'Du bist dran';
         sub = st.rollsLeft === 3 ? (lastTxt || 'Würfle, um zu beginnen.') : st.rollsLeft === 0 ? 'Keine Würfe mehr. Wähle ein Feld in deiner Spalte.' : 'Tippe Würfel zum Halten an. Dann würfle nochmals oder wähle ein Feld.';
@@ -746,8 +869,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!$('undoBtn').hidden) $('undoBtn').setAttribute('aria-label', `${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} zurücknehmen`);
     const inSetup = !!st && st.status === 'setup';
     const isOver = !!st && st.status === 'over';
-    $('controls').hidden = inSetup || (mode === 'remote' && !me && !(st && st.status !== 'waiting'));
-    $('dice').hidden = inSetup || isOver;
+    $('controls').hidden = inSetup || (paper && !isOver) || (mode === 'remote' && !me && !(st && st.status !== 'waiting'));
+    $('dice').hidden = inSetup || isOver || paper;
+    $('rolls').hidden = paper;
     renderOver(st, isOver);
     document.querySelector('.tray').classList.toggle('static', !playing);
 
@@ -764,7 +888,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         if (document.activeElement !== inp && !inp.dataset.dirty) inp.value = (st.seats[seat] && st.seats[seat].nick) || '';
         $('lab-' + seat).textContent = (isMe(seat) ? 'Du' : seat === 'p1' ? 'Spieler 1' : 'Spieler 2') + (st.starter === seat ? ' · beginnt' : '');
       }
-      $('setupNote').textContent = mode === 'local' ? 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.' : 'Ihr könnt beide die Namen ändern. Wer zuerst auf «Spiel starten» tippt, legt los.';
+      $('setupNote').textContent = paper ? 'Ihr würfelt mit echten Würfeln. Das Handy liegt als Spielblock auf dem Tisch.'
+        : mode === 'local' ? 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.' :'Ihr könnt beide die Namen ändern. Wer zuerst auf «Spiel starten» tippt, legt los.';
     }
     setupVisible = canSetup;
 
@@ -781,9 +906,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     }
 
     // score pad
+    const editable = paper && !!st && (st.status === 'playing' || st.status === 'over');
     for (const c of CATS){
       const {tr, cells} = rowEls[c.k];
-      const clickable = myTurn && st.dice && st.scores[st.turn][c.k] == null;
+      const clickable = !paper && myTurn && st.dice && st.scores[st.turn][c.k] == null;
       tr.classList.toggle('clickable', !!clickable);
       tr.classList.toggle('selected', selected === c.k && !!clickable);
       for (const seat of SEATS){
@@ -803,7 +929,18 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
           b.setAttribute('aria-label', `${c.n}: ${pts} eintragen`);
           b.addEventListener('click', () => pick(c.k));
           td.appendChild(b);
+        } else if (editable){
+          // paper sheet: an empty box to write in, stronger in the column whose turn it is
+          td.textContent = '';
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'opt empty' + (seat === st.turn ? '' : ' zero');
+          const box = document.createElement('span'); box.className = 'box';
+          b.appendChild(box);
+          b.setAttribute('aria-label', `${c.n} für ${seatName(seat)} eintragen`);
+          td.appendChild(b);
         } else td.textContent = '';
+        td.classList.toggle('tap', editable);
       }
     }
     for (const seat of SEATS){
@@ -826,7 +963,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       let h = '';
       if (playing){
         const t = st.turn;
-        if (myTurn && mode === 'local') h = st.dice ? `${seatName(t)}: Tippe auf ein umrandetes Feld in der ${colour(t)}n Spalte.` : `${seatName(t)} trägt in der ${colour(t)}n Spalte ein. Zuerst würfeln.`;
+        if (paper) h = `${seatName(t)} ist dran: Tippe auf ein Feld in der ${colour(t)}n Spalte und wähle die Punkte. Eingetragenes kannst du antippen und ändern.`;
+        else if (myTurn && mode === 'local') h = st.dice ? `${seatName(t)}: Tippe auf ein umrandetes Feld in der ${colour(t)}n Spalte.` : `${seatName(t)} trägt in der ${colour(t)}n Spalte ein. Zuerst würfeln.`;
         else if (myTurn) h = st.dice ? 'Tippe auf ein umrandetes Feld in deiner Spalte, um die Punkte einzutragen.' : `Deine Spalte ist die ${colour(t)}. Würfle zuerst, dann kannst du eintragen.`;
         else if (me) h = `${seatName(t)} trägt gerade ein. Deine ${colour(me)} Spalte ist gesperrt, bis du wieder dran bist.`;
         else h = `Du schaust zu. ${seatName(t)} ist dran.`;
@@ -851,6 +989,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       mode === 'local' ? localReason
       : mode === 'remote' ? 'Die Züge werden laufend zwischen beiden Handys synchronisiert. Ihr könnt die Seite schliessen und später weiterspielen, das Spiel wartet auf euch.'
       : '';
+    $('viewBtn').hidden = mode === 'connecting';
+    $('viewBtn').textContent = !paper ? '🎲 Mit echten Würfeln spielen'
+      : FIREBASE_CONFIG.projectId ? '📱 Zurück zum Online-Spiel' : '🎲 Zurück zu den Würfeln auf dem Handy';
     const showShare = mode === 'remote' && !!me && !!st && st.status === 'waiting';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
@@ -1047,6 +1188,15 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     try { await navigator.clipboard.writeText(url); toast('Link kopiert. Füge ihn in eine Nachricht ein.'); }
     catch(_) { const i = $('shareUrl'); i.hidden = false; i.select(); toast('Markiere den Link und kopiere ihn.'); }
   }
+  // Switch between the online table and the paper sheet. The page reloads on the new address.
+  $('viewBtn').addEventListener('click', () => {
+    let room = '';
+    try {
+      localStorage.setItem('yatzy-view', paper ? 'online' : 'papier');
+      room = localStorage.getItem('yatzy-room') || '';
+    } catch(_) {}
+    location.hash = paper ? room : 'papier';
+  });
   $('shareBtn').addEventListener('click', shareLink);
   $('footShare').addEventListener('click', shareLink);
 
@@ -1130,7 +1280,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   let wakeLock = null, wakeBusy = false;
   async function keepAwake(){
     if (wakeBusy || !navigator.wakeLock) return;
-    const want = soundOn && mode === 'remote' && !!S && S.status === 'playing' && !!mySeat() && document.visibilityState === 'visible';
+    // online: so the gong can be heard; paper sheet: so the screen stays on while it lies on the table
+    const want = !!S && S.status === 'playing' && document.visibilityState === 'visible' && (paper || (soundOn && mode === 'remote' && !!mySeat()));
     if (want === !!wakeLock) return;
     wakeBusy = true;
     try {
@@ -1233,6 +1384,17 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   // ---------- boot ----------
   async function boot(){
     myId = deviceId();
+    // Keep the app on the phone, so it also opens offline.
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    // #papier opens the paper sheet; without an address the phone opens what it showed last.
+    const h = (location.hash || '').replace(/^#/, '').toLowerCase();
+    let view = '';
+    try { view = localStorage.getItem('yatzy-view') || ''; } catch(_) {}
+    if (h === 'papier' || (!h && view === 'papier')){
+      try { localStorage.setItem('yatzy-view', 'papier'); } catch(_) {}
+      return startPaper();
+    }
+    try { localStorage.setItem('yatzy-view', 'online'); } catch(_) {}
     render();
     if (!FIREBASE_CONFIG.projectId){
       localReason = 'Die Synchronisation ist noch nicht eingerichtet (Firebase fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
@@ -1271,6 +1433,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       }
     );
     subscribe();
+    syncPaper();
   }
   boot();
 })();
