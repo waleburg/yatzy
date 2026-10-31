@@ -22,6 +22,7 @@ Yatzy für zwei Personen auf zwei Handys, mit skandinavischen Regeln. Die Seite 
    - Standort: `europe-west6 (Zürich)`, oder ein anderer Standort in Europa.
    - Wähle den **Produktionsmodus**.
 4. Öffne in Firestore den Tab **Regeln**. Ersetze den ganzen Inhalt durch den Inhalt von `firestore.rules` und tippe auf **Veröffentlichen**.
+   Ändert sich `firestore.rules` später, zum Beispiel für die Liste «Meine Tische», wiederholst du diesen Schritt.
 5. Gehe zur **Projektübersicht**, wähle das Web-Symbol **`</>`** («App hinzufügen») und gib als Namen `Yatzy` ein. Firebase Hosting brauchst du nicht.
 6. Firebase zeigt dir einen Block `const firebaseConfig = { … }`. Übertrage diese Werte in `index.html` in den Block `FIREBASE_CONFIG`:
 
@@ -66,6 +67,7 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 
 - **Mit echten Würfeln:** Unten auf der Seite wechselst du mit «🎲 Mit echten Würfeln spielen» zum Spielblock. Ihr würfelt am Tisch, tippt auf ein Feld und wählt die Punkte. Angeboten werden nur Werte, die mit fünf Würfeln möglich sind. Eingetragenes kannst du antippen und ändern oder leeren. Der Block wird nur auf diesem Handy gespeichert, funktioniert ganz ohne Internet und hält den Bildschirm an. Die Adresse dafür ist `…/#papier`. Mit «Zurück zum Online-Spiel» kommst du wieder an euren Tisch.
 - **Ergebnisse vom Spielblock:** Fertige Spiele kommen in die Statistik des Online-Tisches, den dieses Handy zuletzt geöffnet hat. Ohne Verbindung geschieht das automatisch, sobald das Handy wieder online ist. Die Spieler werden über die Namen zugeordnet, nennt euch also gleich wie am Online-Tisch. Korrigierst du ein fertiges Spiel nachträglich, wird der Eintrag in der Statistik ersetzt.
+- **Meine Tische:** Eine versteckte Liste zeigt alle Tische, die das Handy geöffnet hat, mit wer gegen wen spielt, Spielstand, Siegen und Datum. Antippen öffnet den Tisch. Mit einem persönlichen Code wird die Liste zusätzlich in Firebase gesichert. Gibst du denselben Code auf einem anderen Handy ein, oder nachdem die App gelöscht wurde, sind alle Tische wieder da.
 - **Ohne Internet starten:** Die Seite wird beim ersten Öffnen auf dem Handy gespeichert. Danach startet sie auch ohne Verbindung, am besten über das Icon auf dem Home-Bildschirm.
 - **Rückgängig:** Hast du dich vertippt, kannst du deinen letzten Eintrag zurücknehmen, solange die andere Person noch nicht gewürfelt hat. Das gilt auch für den allerletzten Eintrag eines Spiels.
 - **Offline:** Hat ein Handy keine Verbindung, erscheint oben ein rotes «Offline». Würfeln, Halten und Eintragen werden gesendet, sobald die Verbindung zurück ist. «Neues Spiel», Plätze und «Rückgängig» gehen erst wieder online.

@@ -219,6 +219,27 @@ export function mergeResults(room, results){
   return {history: history.slice(-HISTORY_MAX), changed};
 }
 
+// ---------- my tables ----------
+// The tables a phone has opened: [{id, at}], newest first. Lists from several phones
+// (or from the backup under a personal code) merge into one.
+export const ROOM_RE = /^[a-z0-9-]{8,40}$/;
+export const ROOMS_MAX = 50;
+export function mergeRooms(...lists){
+  const best = new Map();
+  for (const list of lists) for (const r of Array.isArray(list) ? list : []){
+    if (!r || !ROOM_RE.test(r.id) || !Number.isFinite(r.at)) continue;
+    if (!best.has(r.id) || best.get(r.id) < r.at) best.set(r.id, r.at);
+  }
+  return [...best].map(([id, at]) => ({id, at})).sort((a, b) => b.at - a.at).slice(0, ROOMS_MAX);
+}
+// A personal code as people type it ("Brokkoli 2207") turned into a safe address (brokkoli-2207).
+export function normCode(t){
+  const c = String(t || '').trim().toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  return ROOM_RE.test(c) ? c : null;
+}
+
 // ---------- extras ----------
 // Love notes go from a 💚 player to a 🥦 partner (by symbol or in the name).
 export function loveTeam(st, sender){

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   KEYS, score, totals, blank, clean, rollDice, toggleHeld, enterScore,
   undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults
+  boxOptions, markBox, mergeResults, mergeRooms, normCode
 } from '../game.js';
 
 // A game in progress: both seats taken, p1's turn, dice already rolled once.
@@ -256,4 +256,24 @@ test('paper results merge into the online history by name and time', () => {
   assert.equal(fixed.changed, 1);
   assert.equal(fixed.history.length, 2, 'a corrected game replaces its entry');
   assert.equal(fixed.history[1].p2, 260);
+});
+
+test('table lists from several phones merge, newest first, without junk', () => {
+  const phone = [{id: 'raum-aaaaaaaa', at: 100}, {id: 'raum-bbbbbbbb', at: 300}];
+  const backup = [{id: 'raum-aaaaaaaa', at: 500}, {id: 'raum-cccccccc', at: 200}, {id: 'Bad Id!', at: 900}, {id: 'raum-dddddddd'}, null];
+  assert.deepEqual(mergeRooms(phone, backup), [
+    {id: 'raum-aaaaaaaa', at: 500}, {id: 'raum-bbbbbbbb', at: 300}, {id: 'raum-cccccccc', at: 200}
+  ]);
+  assert.deepEqual(mergeRooms(null, 'x'), []);
+  const many = Array.from({length: 60}, (_, i) => ({id: 'raum-' + String(i).padStart(8, '0'), at: i}));
+  assert.equal(mergeRooms(many).length, 50);
+  assert.equal(mergeRooms(many)[0].at, 59, 'the oldest ones drop out');
+});
+
+test('a personal code is cleaned up and must be long enough', () => {
+  assert.equal(normCode('  Brokkoli 2207 '), 'brokkoli-2207');
+  assert.equal(normCode('Müesli&Gmüeterli'), 'mueesligmueeterli');
+  assert.equal(normCode('kurz'), null);
+  assert.equal(normCode(''), null);
+  assert.equal(normCode('x'.repeat(41)), null);
 });

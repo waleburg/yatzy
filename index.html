@@ -228,6 +228,21 @@ td.cell.tap{cursor:pointer}
 .val[aria-pressed="true"]{background:var(--seat);border-color:var(--seat);color:var(--paper)}
 .sheet .row{display:flex;gap:8px;margin-top:14px}
 .sheet .row .lnk{flex:1}
+.pad h2{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+
+/* ---------- my tables (hidden: three taps or a long press on «Spielblock») ---------- */
+.sheet-card.tall{--seat:var(--print);max-height:88vh;overflow:auto}
+.tables{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.tbl{width:100%;display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--grid);background:var(--paper);color:var(--fg);text-align:left;cursor:pointer}
+.tbl.here{border-color:var(--grid-strong);background:color-mix(in srgb, var(--grid) 22%, var(--paper))}
+.tbl .vs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:700;font-size:16px}
+.tbl .vs .p1{color:var(--ink1)} .tbl .vs .p2{color:var(--ink2)} .tbl .vs i{font-style:normal;font-weight:400;color:var(--muted);font-size:13px}
+.tbl .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tbl .here-tag{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--print)}
+.keybox{margin-top:16px;padding-top:12px;border-top:1px solid var(--grid)}
+.keybox p{margin:0 0 8px}
+.keybox form{display:flex;gap:8px}
+.keybox input{flex:1;min-width:0;min-height:44px;border-radius:10px;border:1.5px solid var(--grid-strong);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;padding:0 10px}
 
 /* ---------- footer ---------- */
 .foot{margin-top:18px;display:flex;flex-direction:column;gap:12px;font-size:14px;color:var(--muted)}
@@ -371,6 +386,23 @@ details li{margin:3px 0}
     </div>
   </div>
 </div>
+<div class="sheet" id="tablesSheet" hidden>
+  <div class="sheet-card tall" role="dialog" aria-modal="true" aria-labelledby="tablesTitle">
+    <div class="sheet-head"><strong id="tablesTitle">Meine Tische</strong><span id="tablesSub">Alle Tische, die dieses Handy geöffnet hat. Antippen zum Öffnen.</span></div>
+    <ul class="tables" id="tablesList"></ul>
+    <div class="keybox">
+      <p class="note" id="keyText"></p>
+      <form id="keyForm">
+        <input id="keyInput" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. brokkoli-2207" aria-label="Persönlicher Code">
+        <button class="lnk" type="submit" id="keyBtn">Sichern</button>
+      </form>
+    </div>
+    <div class="row">
+      <button class="lnk" type="button" id="tablesNew">Neuer Tisch</button>
+      <button class="lnk" type="button" id="tablesClose">Schliessen</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 <button class="note-love" id="love" type="button" hidden aria-live="polite"></button>
 
@@ -378,7 +410,7 @@ details li{margin:3px 0}
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults
+  boxOptions, markBox, mergeResults, mergeRooms, normCode, ROOM_RE
 } from './game.js';
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
@@ -402,6 +434,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   let mode = 'connecting';   // 'connecting' | 'remote' | 'local'
   let paper = false;         // local mode as a paper sheet: real dice on the table, no dice on screen
   let ref = null;
+  let room = null;           // this table's address (#raum-…), online only
   let myId = null;
   let selected = null;
   let lastRollId = null, lastWritten = null, lastStatus = null;
@@ -677,9 +710,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!ROOM_RE.test(room || '') || !todo.length) return;
     syncing = true;
     try {
-      const [fb, fs] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')]);
-      const app = fb.getApps()[0] || fb.initializeApp(FIREBASE_CONFIG);
-      const store = fs.getFirestore(app);
+      const {fs, store} = await firebase();
       const r = fs.doc(store, 'games', room);
       const changed = await fs.runTransaction(store, async tx => {
         const cur = await tx.get(r);
@@ -1166,7 +1197,6 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 
   // ---------- room from the link ----------
   // Each table lives at its own hard-to-guess address (#raum-…), remembered on this device.
-  const ROOM_RE = /^[a-z0-9-]{8,40}$/;
   function roomId(){
     let r = (location.hash || '').replace(/^#/, '').toLowerCase();
     if (!ROOM_RE.test(r)){
@@ -1303,18 +1333,20 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     toast(secret ? '🥦💚 freigeschaltet. Wähle dein Symbol im Namensformular.' : '🥦💚 wieder versteckt.');
     render();
   }
-  let tapCount = 0, lastTap = 0, holdTimer = null;
-  const brand = $('brand');
-  brand.addEventListener('pointerdown', () => {
-    const now = Date.now();
-    tapCount = now - lastTap < 700 ? tapCount + 1 : 1;
-    lastTap = now;
-    clearTimeout(holdTimer);
-    if (tapCount >= 3){ tapCount = 0; return toggleSecret(); }
-    holdTimer = setTimeout(() => { tapCount = 0; toggleSecret(); }, 1000);
-  });
-  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) brand.addEventListener(ev, () => clearTimeout(holdTimer));
-  brand.addEventListener('contextmenu', e => e.preventDefault());
+  function secretGesture(el, fn){
+    let tapCount = 0, lastTap = 0, holdTimer = null;
+    el.addEventListener('pointerdown', () => {
+      const now = Date.now();
+      tapCount = now - lastTap < 700 ? tapCount + 1 : 1;
+      lastTap = now;
+      clearTimeout(holdTimer);
+      if (tapCount >= 3){ tapCount = 0; return fn(); }
+      holdTimer = setTimeout(() => { tapCount = 0; fn(); }, 1000);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => clearTimeout(holdTimer));
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  secretGesture($('brand'), toggleSecret);
 
   // ---------- reactions ----------
   for (const [emo, label] of REACTIONS){
@@ -1381,6 +1413,136 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     requestAnimationFrame(frame);
   }
 
+  // ---------- my tables: every table this phone has opened (hidden: tap «Spielblock» three times) ----------
+  function myRooms(){ try { return mergeRooms(JSON.parse(localStorage.getItem('yatzy-rooms') || '[]')); } catch(_) { return []; } }
+  function saveRooms(list){ try { localStorage.setItem('yatzy-rooms', JSON.stringify(list)); } catch(_) {} }
+  function myCode(){ try { return normCode(localStorage.getItem('yatzy-key')); } catch(_) { return null; } }
+  let remembered = false;
+  function rememberRoom(id){
+    saveRooms(mergeRooms(myRooms(), [{id, at: Date.now()}]));
+    backupRooms().catch(() => {});
+  }
+  // With a personal code the list is also kept in Firebase (keys/<code>), merged with
+  // what other phones saved there. So a new phone, or a deleted app, gets every table back.
+  async function backupRooms(code = myCode()){
+    if (!code || !FIREBASE_CONFIG.projectId) return null;
+    const {fs, store} = await firebase();
+    const r = fs.doc(store, 'keys', code);
+    const rooms = await fs.runTransaction(store, async tx => {
+      const cur = await tx.get(r);
+      const merged = mergeRooms(myRooms(), cur.exists() ? cur.data().rooms : []);
+      tx.set(r, {v: 1, rooms: merged, updatedAt: new Date().toISOString()});
+      return merged;
+    });
+    saveRooms(rooms);
+    return rooms;
+  }
+
+  let tablesOpen = false;
+  async function openTables(){
+    tablesOpen = true;
+    $('tablesSheet').hidden = false;
+    renderKey();
+    drawTables(myRooms(), {});
+    if (!FIREBASE_CONFIG.projectId || !navigator.onLine) return;
+    try { await backupRooms(); } catch(_) {}
+    const list = myRooms(), info = {};
+    try {
+      const {fs, store} = await firebase();
+      await Promise.all(list.map(async x => {
+        try { const d = await fs.getDoc(fs.doc(store, 'games', x.id)); info[x.id] = d.exists() ? clean(d.data()) : 'empty'; } catch(_) {}
+      }));
+    } catch(_) {}
+    if (tablesOpen) drawTables(list, info);
+  }
+  function closeTables(){ tablesOpen = false; $('tablesSheet').hidden = true; }
+  function goTo(target){
+    try { localStorage.setItem('yatzy-view', target === 'papier' ? 'papier' : 'online'); } catch(_) {}
+    if (location.hash === '#' + target) closeTables();
+    else location.hash = target;   // hashchange reloads the page
+  }
+  const day = x => { const d = new Date(typeof x === 'string' ? x.split('~')[0] : x); return isNaN(d) ? '' : d.toLocaleDateString('de-CH', {day: '2-digit', month: '2-digit', year: '2-digit'}); };
+  function drawTables(list, info){
+    const ul = $('tablesList'); ul.textContent = '';
+    const row = (here, vs, meta, target) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tbl' + (here ? ' here' : '');
+      const top = document.createElement('span'); top.className = 'vs';
+      top.append(...vs);
+      if (here){ const t = document.createElement('span'); t.className = 'here-tag'; t.textContent = 'Hier'; top.appendChild(t); }
+      const m = document.createElement('span'); m.className = 'meta'; m.textContent = meta;
+      b.append(top, m);
+      b.addEventListener('click', () => goTo(target));
+      li.appendChild(b); ul.appendChild(li);
+    };
+    const span = (cls, text) => { const e = document.createElement(cls === 'i' ? 'i' : 'span'); if (cls !== 'i') e.className = cls; e.textContent = text; return e; };
+    row(paper, [span('', '🎲 Spielblock mit echten Würfeln')], 'Nur auf diesem Handy, auch ohne Internet', 'papier');
+    for (const x of list){
+      const st = info[x.id];
+      let vs, meta;
+      if (st && typeof st === 'object'){
+        const seated = SEATS.filter(seat => st.seats[seat]);
+        vs = seated.length === 2 ? [span('p1', seatLabel('p1', st)), span('i', 'gegen'), span('p2', seatLabel('p2', st))]
+          : seated.length ? [span(seated[0], seatLabel(seated[0], st)), span('i', 'wartet auf eine zweite Person')]
+          : [span('', 'Noch niemand am Tisch')];
+        const t1 = totals(st.scores.p1).total, t2 = totals(st.scores.p2).total;
+        const w = {p1: 0, p2: 0};
+        st.history.forEach(h => { if (h.p1 > h.p2) w.p1++; else if (h.p2 > h.p1) w.p2++; });
+        meta = [
+          st.status === 'playing' ? `Läuft ${t1} : ${t2}` : st.status === 'over' ? `Fertig ${t1} : ${t2}` : st.status === 'setup' ? 'Neues Spiel' : 'Offen',
+          st.history.length ? `Siege ${w.p1} – ${w.p2}` : '',
+          'zuletzt ' + day(st.updatedAt || x.at)
+        ].filter(Boolean).join(' · ');
+      } else {
+        vs = [span('', st === 'empty' ? 'Leerer Tisch' : '#' + x.id)];
+        meta = 'Geöffnet am ' + day(x.at) + (st ? '' : navigator.onLine ? ' · lädt…' : ' · ohne Internet keine Details');
+      }
+      row(!paper && x.id === room, vs, meta, x.id);
+    }
+  }
+  function renderKey(){
+    const code = myCode();
+    $('keyForm').hidden = !FIREBASE_CONFIG.projectId;
+    $('keyText').textContent = !FIREBASE_CONFIG.projectId ? ''
+      : code ? `Gesichert unter dem Code «${code}». Auf einem anderen Handy, oder wenn die App gelöscht wurde, gibst du hier denselben Code ein. Dann sind alle Tische wieder da.`
+      : 'Lege einen persönlichen Code fest, zum Beispiel ein Wort mit Zahlen (mindestens 8 Zeichen), das niemand errät. Mit demselben Code holst du deine Tische auf jedem Handy zurück, auch wenn die App gelöscht wurde.';
+    $('keyInput').value = '';
+    $('keyInput').placeholder = code ? 'Anderen Code eingeben' : 'z. B. brokkoli-2207';
+    $('keyBtn').textContent = code ? 'Wechseln' : 'Sichern';
+  }
+  $('keyForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const code = normCode($('keyInput').value);
+    if (!code) return toast('Der Code braucht mindestens 8 Buchstaben oder Zahlen.');
+    if (!navigator.onLine) return toast('Dafür braucht es eine Internetverbindung.');
+    $('keyBtn').disabled = true;
+    try {
+      const before = myRooms().length;
+      const rooms = await backupRooms(code);
+      try { localStorage.setItem('yatzy-key', code); } catch(_) {}
+      const added = rooms.length - before;
+      toast(added > 0 ? `Gesichert. ${added === 1 ? 'Ein Tisch von einem anderen Handy ist' : added + ' Tische von anderen Handys sind'} dazugekommen.` : 'Gesichert. Deine Tische sind jetzt unter diesem Code gespeichert.');
+      openTables();
+    } catch(err){
+      toast(err && err.code === 'permission-denied' ? 'Firebase erlaubt das noch nicht. Zuerst müssen die Regeln aktualisiert werden (siehe README).' : 'Das ging nicht. Prüfe die Verbindung und versuche es nochmals.');
+    } finally { $('keyBtn').disabled = false; }
+  });
+  secretGesture(document.querySelector('.pad h2'), openTables);
+  $('tablesClose').addEventListener('click', closeTables);
+  $('tablesSheet').addEventListener('click', e => { if (e.target === $('tablesSheet')) closeTables(); });
+  $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && tablesOpen) closeTables(); });
+
+  // ---------- Firebase, loaded once when first needed ----------
+  let fbLoad = null;
+  function firebase(){
+    if (!fbLoad) fbLoad = Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')])
+      .then(([fb, fs]) => ({fs, store: fs.getFirestore(fb.getApps()[0] || fb.initializeApp(FIREBASE_CONFIG))}))
+      .catch(e => { fbLoad = null; throw e; });
+    return fbLoad;
+  }
+
   // ---------- boot ----------
   async function boot(){
     myId = deviceId();
@@ -1400,14 +1562,14 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       localReason = 'Die Synchronisation ist noch nicht eingerichtet (Firebase fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
       return startLocal();
     }
-    let fb, fs;
-    try { [fb, fs] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')]); }
+    let fs, store;
+    try { ({fs, store} = await firebase()); }
     catch(_){
       localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
       return startLocal();
     }
-    const store = fs.getFirestore(fb.initializeApp(FIREBASE_CONFIG));
-    const r = fs.doc(store, 'games', roomId());
+    room = roomId();
+    const r = fs.doc(store, 'games', room);
     const wrap = s => ({exists: s.exists(), data: () => s.data(), cached: s.metadata.fromCache});
     ref = {
       set: data => fs.setDoc(r, data),
@@ -1426,6 +1588,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       snap => {
         netCached = snap.cached; if (!snap.cached) hadServer = true;
         applyServer(snap.exists ? clean(snap.data()) : null);
+        if (snap.exists && !snap.cached && !remembered){ remembered = true; rememberRoom(room); }
       },
       err => {
         if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu. Prüfe die Firestore-Regeln (siehe README).');
