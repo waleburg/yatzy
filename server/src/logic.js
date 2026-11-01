@@ -2,7 +2,7 @@
 // tests/server.test.mjs can check it with `node --test`. The rules come from the same
 // game.js the page uses, and every stored state goes through clean(), like a phone reading it.
 
-import { clean, mergeResults, mergeRooms, applyPatch, totals, nameOf, other, CATS, SEATS, FIELDS, ROOM_RE } from '../../game.js';
+import { clean, mergeResults, mergeRooms, applyPatch, totals, nameOf, other, CATS, SEATS, REACTIONS, FIELDS, ROOM_RE } from '../../game.js';
 
 export { ROOM_RE };
 export const MAX_BYTES = 64000;
@@ -61,8 +61,9 @@ export const mergeCode = (stored, sent) => mergeRooms(stored, sent);
 
 // ---------- push notifications ----------
 // What to tell whom after a change: the person whose turn it now is, both when a game ends,
-// and both when someone asks for a Revanche (the one who asked has the app open, and the
-// caller skips phones that are looking at the table).
+// both when someone asks for a Revanche (the one who asked has the app open, and the
+// caller skips phones that are looking at the table), and the other person when someone
+// sends a reaction.
 const label = (st, seat) => (st.seats[seat] && st.seats[seat].emoji ? st.seats[seat].emoji + ' ' : '') + nameOf(seat, st);
 export function pushMessages(prev, next, room, appUrl){
   if (!next) return [];
@@ -87,6 +88,11 @@ export function pushMessages(prev, next, room, appUrl){
       const body = a === b ? `Unentschieden, beide haben ${a} Punkte.`
         : `${label(next, a > b ? 'p1' : 'p2')} gewinnt ${Math.max(a, b)} zu ${Math.min(a, b)}.`;
       out.push({seat, message: {...base, title: 'Spiel vorbei 🏆', body}});
+    }
+    const r = next.seats[o] && next.seats[o].react, was = prev && prev.seats[o] && prev.seats[o].react;
+    if (r && (!was || was.n !== r.n)){
+      const name = (REACTIONS.find(x => x[0] === r.e) || [])[1] || '';
+      out.push({seat, message: {...base, tag: 'yatzy-react-' + room, title: label(next, o), body: `${r.e} ${name}`.trim()}});
     }
   }
   return out;

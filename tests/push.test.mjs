@@ -49,6 +49,14 @@ test('a Revanche reaches the other person, whoever begins', () => {
   ]);
 });
 
+test('a reaction reaches the other person as a message from the sender', () => {
+  const next = game();
+  next.seats.p1.react = {e: '😘', n: 1000};
+  const out = pushMessages(game(), next, 'raum-test1234', APP);
+  assert.deepEqual(out, [{seat: 'p2', message: {tag: 'yatzy-react-raum-test1234', url: APP + '#raum-test1234', title: '💚 Marcel', body: '😘 Kuss'}}]);
+  assert.deepEqual(pushMessages(next, next, 'raum-test1234', APP), [], 'the same reaction only once');
+});
+
 test('pushes only go to real push services over https', () => {
   const sub = endpoint => ({endpoint, keys: {p256dh: 'x', auth: 'y'}});
   assert.ok(subscription(sub('https://web.push.apple.com/abc')));
