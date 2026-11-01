@@ -540,9 +540,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const NOTES = {
     zero: ['Nüt? Macht nüt, Babe. Du bisch trotzdem mi Houptgwinn.', 'Null Pünkt, aber hundert Pünkt für dis Usgseh.', 'Chopf ufe, Babe. Hüt Abe gits Troscht. 😉',
       'Ou, das isch nüt worde. I tröschte di de nächär.', 'I love you, babe. Ou mit null Pünkt.', 'S Glück isch es Velo, es chunnt wieder. Und i bi eh scho da.'],
-    ok: ['Guet gmacht! Kuss!', 'Solid, Babe. Wiiter so!', 'Geit doch! Es Müntschi für di.', 'Nid schlächt, Härzli. Gib em Marcel ja nüt gschänkt!',
+    ok: ['Guet gmacht! Kuss!', 'Solid, Babe. Wiiter so!', 'Geit doch! Es Müntschi für di.', 'Nid schlächt, Härzli. Aber gschänkt gits vo mir nüt!',
       'I love you, babe.', 'Brav gwürflet. Belohnig folgt. 😘'],
-    good: ['Wow, guet gmacht! Kuss!', 'Du bisch hüt heiss am Würfle. Nid nume am Würfle. 😉', 'Mega! Dr Marcel cha sech scho mau warm alege.',
+    good: ['Wow, guet gmacht! Kuss!', 'Du bisch hüt heiss am Würfle. Nid nume am Würfle. 😉', 'Mega! I cha mi scho mau warm alege.',
       'Gopf, du chasch das! Es dicks Müntschi.', 'So gfausch mer. Und ou süsch. ☺️', 'Läck, bisch du guet! I love you, babe.'],
     top: ['Hammer! Das schreit nach eme Kuss. 😘', 'Läck, ig eher di!', 'Läck mir, so heiss wie dä Wurf bisch nume du.', 'Du bisch e Wahnsinn! Hüt Abe fiire mir das. 😏',
       'Gopfriedstutz, was für ne Wurf! Chumm här, ig wott di küsse.'],
@@ -577,7 +577,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     else { pool = NOTES.ok; chance = 0.4; }
     if (Math.random() > chance) return;
     const options = pool.filter(t => t !== lastNote);
-    showNote(options[Math.floor(Math.random() * options.length)], 'Vom Marcel');
+    showNote(options[Math.floor(Math.random() * options.length)], 'Von ' + seatLabel(o));
   }
   function showNote(text, signature){
     lastNote = text;
