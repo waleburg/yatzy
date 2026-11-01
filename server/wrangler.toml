@@ -1,0 +1,19 @@
+name = "yatzy"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://waleburg.github.io,http://localhost:8771,http://127.0.0.1:8771"
+
+[[durable_objects.bindings]]
+name = "TABLES"
+class_name = "Table"
+
+[[durable_objects.bindings]]
+name = "CODES"
+class_name = "Codes"
+
+# The free plan only has Durable Objects that store their data in SQLite.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Table", "Codes"]

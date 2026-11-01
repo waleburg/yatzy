@@ -10,6 +10,8 @@ Yatzy für zwei Personen auf zwei Handys, mit skandinavischen Regeln. Die Seite 
 | `game.js` | Die Spielregeln: Punkte, Würfeln, Eintragen, Rückgängig, Statistik. |
 | `sw.js` | Speichert die Seite auf dem Handy, damit sie auch ohne Internet startet. |
 | `tests/game.test.mjs` | Tests für die Spielregeln. |
+| `server/` | Der künftige Server auf Cloudflare (ersetzt später Firebase). Noch nicht in Betrieb. |
+| `tests/server.test.mjs`, `tests/server-live.test.mjs` | Tests für den Server; die Live-Tests laufen nur mit `SERVER_URL`. |
 | `firestore.rules` | Die Zugriffsregeln, die du in Firebase einfügst. |
 | `README.md` | Diese Anleitung. |
 | `manifest.webmanifest`, `icon.svg`, `*.png` | Name und Icon für den Home-Bildschirm. |
