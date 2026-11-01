@@ -89,3 +89,15 @@ test('a personal code keeps the newest of every list', () => {
   assert.deepEqual(mergeCode(a, b), [{id: 'raum-aaaa1111', at: 9}, {id: 'raum-bbbb2222', at: 5}]);
   assert.deepEqual(mergeCode([], null), []);
 });
+
+test('a move made offline before a Revanche or undo is refused', () => {
+  let t = table();                                                       // rev 3
+  t = send(t, {t: 'set', id: 's1', base: 3, data: {...t.data, status: 'over'}}).table;   // rev 4: the partner's Revanche/undo
+  const old = send(t, {t: 'update', id: 'm1', base: 3, patch: {rollId: 9}});
+  assert.equal(old.table, null);
+  assert.equal(old.reply.why, 'stale');
+  assert.ok(send(t, {t: 'update', id: 'm2', base: 4, patch: {rollId: 9}}).table, 'a move on the new state is fine');
+  assert.ok(send(t, {t: 'update', id: 'm3', patch: {rollId: 9}}).table, 'older apps without base still work');
+  const after = send(send(t, {t: 'update', id: 'm4', base: 4, patch: {rollId: 10}}).table, {t: 'update', id: 'm5', base: 4, patch: {rollId: 11}});
+  assert.ok(after.table, 'other moves in between do not count as a new state');
+});

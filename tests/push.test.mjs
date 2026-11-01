@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { blank } from '../game.js';
 import { subscription, vapidJwt, encrypt, b64u } from '../server/src/push.js';
-import { pushMessages } from '../server/src/logic.js';
+import { pushMessages, stillDue } from '../server/src/logic.js';
 
 const APP = 'https://waleburg.github.io/yatzy/';
 function game(over = {}){
@@ -17,7 +17,7 @@ function game(over = {}){
 test('the person whose turn it now is hears what the other entered', () => {
   const next = game({turn: 'p1', last: {seat: 'p2', cat: 'house', pts: 25}});
   const out = pushMessages(game(), next, 'raum-test1234', APP);
-  assert.deepEqual(out, [{seat: 'p1', message: {tag: 'yatzy-raum-test1234', url: APP + '#raum-test1234', title: 'Du bist dran 🎲', body: '🥦 Brokkoli hat 25 bei Full House eingetragen.'}}]);
+  assert.deepEqual(out, [{seat: 'p1', kind: 'turn', message: {tag: 'yatzy-raum-test1234', url: APP + '#raum-test1234', title: 'Du bist dran 🎲', body: '🥦 Brokkoli hat 25 bei Full House eingetragen.'}}]);
 });
 
 test('a roll or a reaction tells nobody anything', () => {
@@ -53,8 +53,16 @@ test('a reaction reaches the other person as a message from the sender', () => {
   const next = game();
   next.seats.p1.react = {e: '😘', n: 1000};
   const out = pushMessages(game(), next, 'raum-test1234', APP);
-  assert.deepEqual(out, [{seat: 'p2', message: {tag: 'yatzy-react-raum-test1234', url: APP + '#raum-test1234', title: '💚 Marcel', body: '😘 Kuss'}}]);
+  assert.deepEqual(out, [{seat: 'p2', kind: 'react', message: {tag: 'yatzy-react-raum-test1234', url: APP + '#raum-test1234', title: '💚 Marcel', body: '😘 Kuss'}}]);
   assert.deepEqual(pushMessages(next, next, 'raum-test1234', APP), [], 'the same reaction only once');
+});
+
+test('a held-back notification is only sent later if it still fits', () => {
+  assert.equal(stillDue('turn', 'p1', game({turn: 'p1'})), true);
+  assert.equal(stillDue('turn', 'p1', game({turn: 'p2'})), false, 'already played meanwhile');
+  assert.equal(stillDue('over', 'p2', game({status: 'over'})), true);
+  assert.equal(stillDue('over', 'p2', game()), false, 'a new game started meanwhile');
+  assert.equal(stillDue('turn', 'p1', null), false);
 });
 
 test('pushes only go to real push services over https', () => {

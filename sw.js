@@ -2,9 +2,11 @@
 // connection (the paper sheet then works fully offline), and it shows the push notifications
 // the server sends. The server's live data itself is never cached.
 
-const CACHE = 'yatzy-v4';
+const CACHE = 'yatzy-v5';
 const SHELL = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
   'fonts/familjen-grotesk.woff2', 'fonts/kalam-400.woff2', 'fonts/kalam-700.woff2'];
+// How long the page waits for the network before it starts from the saved copy.
+const PATIENCE = 3000;
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting()));
@@ -20,13 +22,38 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  // Our own files: the newest version when online (index.html and game.js must match, so the
-  // browser's own cache is always asked to check with the server), the saved one when offline.
-  const key = req.mode === 'navigate' ? 'index.html' : req;
-  e.respondWith(fetch(req.mode === 'navigate' ? req.url : req, {cache: 'no-cache'})
-    .then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(key, copy)); } return res; })
-    .catch(() => caches.match(key, {ignoreSearch: true})));
+  // The page: the newest one, unless the network takes longer than PATIENCE (weak signal).
+  if (req.mode === 'navigate') return e.respondWith(fresh(e, req.url, 'index.html'));
+  // Fonts, icons and the rules file with its version number (game.js?v=…) don't change
+  // under the same address: straight from the phone, refreshed in the background.
+  if (/\/(fonts\/|icon|apple-touch|manifest)/.test(url.pathname) || (url.pathname.endsWith('/game.js') && url.searchParams.has('v')))
+    return e.respondWith(stored(e, req));
+  e.respondWith(fresh(e, req, req));
 });
+
+// Network first, but with a time limit; the saved copy when it is too slow or offline.
+function fresh(e, req, key){
+  const net = fetch(req, {cache: 'no-cache'}).then(async res => {
+    if (res.ok) await (await caches.open(CACHE)).put(key, res.clone());
+    return res;
+  });
+  e.waitUntil(net.catch(() => {}));
+  const late = new Promise(ok => setTimeout(ok, PATIENCE)).then(() => saved(key)).then(hit => hit || net);
+  return Promise.race([net, late]).catch(() => saved(key).then(hit => hit || Response.error()));
+}
+// The saved copy at once, and a fresh one for next time.
+function stored(e, req){
+  const net = fetch(req).then(async res => {
+    if (res.ok) await (await caches.open(CACHE)).put(req, res.clone());
+    return res;
+  });
+  e.waitUntil(net.catch(() => {}));
+  return saved(req).then(hit => hit || net);
+}
+// Exactly this file if it was saved; only then any saved version of it (better than nothing).
+function saved(key){
+  return caches.match(key).then(hit => hit || caches.match(key, {ignoreSearch: true}));
+}
 
 // A notification from the server (see server/src/logic.js, pushMessages).
 self.addEventListener('push', e => {

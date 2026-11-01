@@ -12,13 +12,13 @@ export const SEEN_MAX = 100;
 // A table as stored: {rev, data, seen}. rev counts every change, data is null until created.
 export const emptyTable = () => ({rev: 0, data: null, seen: []});
 
-// One message from a phone: {t:'update', id, patch} or {t:'set', id, base, data}.
+// One message from a phone: {t:'update', id, base, patch} or {t:'set', id, base, data}.
 export function parseMessage(text){
   if (typeof text !== 'string' || text.length > MAX_BYTES) return null;
   let m;
   try { m = JSON.parse(text); } catch { return null; }
   if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !m.id || m.id.length > 60) return null;
-  if (m.t === 'update' && m.patch && typeof m.patch === 'object' && !Array.isArray(m.patch)) return m;
+  if (m.t === 'update' && m.patch && typeof m.patch === 'object' && !Array.isArray(m.patch) && (m.base === undefined || Number.isInteger(m.base))) return m;
   if (m.t === 'set' && Number.isInteger(m.base) && m.data && typeof m.data === 'object') return m;
   return null;
 }
@@ -26,7 +26,9 @@ export function parseMessage(text){
 // Applies a message to a table. Returns {table, reply}: table is the new table (or null
 // if nothing changed), reply goes back to the phone that sent it.
 //   update: changes single fields; a key like 'seats.p1.notes' changes a nested field.
-//           It fails on a table that doesn't exist yet.
+//           It fails on a table that doesn't exist yet, and when it was made on a state
+//           older than the last `set` (a move made offline before a Revanche, an undo or a
+//           new game would otherwise bring the old scores back).
 //   set:    replaces the whole state, but only if nobody changed it since the phone saw
 //           revision `base`. Otherwise the phone gets the current state and tries again.
 export function applyMessage(table, m){
@@ -34,6 +36,7 @@ export function applyMessage(table, m){
   let next;
   if (m.t === 'update'){
     if (!table.data) return {table: null, reply: {t: 'nack', id: m.id, why: 'not-found'}};
+    if (m.base !== undefined && m.base < (table.setRev || 0)) return {table: null, reply: {t: 'nack', id: m.id, why: 'stale'}};
     next = structuredClone(table.data);
     if (!applyPatch(next, m.patch)) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};
   } else {
@@ -41,7 +44,8 @@ export function applyMessage(table, m){
     if (m.data.v !== 1 || Object.keys(m.data).some(k => !FIELDS.includes(k))) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};
     next = m.data;
   }
-  const out = {rev: table.rev + 1, data: clean(next), seen: [...table.seen, m.id].slice(-SEEN_MAX)};
+  const out = {rev: table.rev + 1, data: clean(next), seen: [...table.seen, m.id].slice(-SEEN_MAX), setRev: table.setRev || 0};
+  if (m.t === 'set') out.setRev = out.rev;
   return {table: out, reply: {t: 'ack', id: m.id, rev: out.rev}};
 }
 
@@ -75,27 +79,35 @@ export function pushMessages(prev, next, room, appUrl){
     const wasMine = prev && prev.status === 'playing' && prev.turn === seat;
     if (prev && prev.status === 'over' && next.status === 'playing'){
       const body = next.turn === seat ? `${label(next, o)} will eine Revanche. Du beginnst.` : `${label(next, o)} will eine Revanche und beginnt.`;
-      out.push({seat, message: {...base, title: 'Revanche! 🎲', body}});
+      out.push({seat, kind: 'revanche', message: {...base, title: 'Revanche! 🎲', body}});
     } else if (next.status === 'playing' && next.turn === seat && !wasMine){
       const L = next.last, cat = L && CATS.find(c => c.k === L.cat);
       const body = L && L.seat === o && cat ? `${label(next, o)} hat ${L.pts} bei ${cat.n} eingetragen.`
         : prev && prev.status !== 'playing' ? `${label(next, o)} ist am Tisch. Das Spiel beginnt mit dir.`
         : `${label(next, o)} wartet auf dich.`;
-      out.push({seat, message: {...base, title: 'Du bist dran 🎲', body}});
+      out.push({seat, kind: 'turn', message: {...base, title: 'Du bist dran 🎲', body}});
     }
     if (next.status === 'over' && (!prev || prev.status !== 'over')){
       const a = totals(next.scores.p1).total, b = totals(next.scores.p2).total;
       const body = a === b ? `Unentschieden, beide haben ${a} Punkte.`
         : `${label(next, a > b ? 'p1' : 'p2')} gewinnt ${Math.max(a, b)} zu ${Math.min(a, b)}.`;
-      out.push({seat, message: {...base, title: 'Spiel vorbei 🏆', body}});
+      out.push({seat, kind: 'over', message: {...base, title: 'Spiel vorbei 🏆', body}});
     }
     const r = next.seats[o] && next.seats[o].react, was = prev && prev.seats[o] && prev.seats[o].react;
     if (r && (!was || was.n !== r.n)){
       const name = (REACTIONS.find(x => x[0] === r.e) || [])[1] || '';
-      out.push({seat, message: {...base, tag: 'yatzy-react-' + room, title: label(next, o), body: `${r.e} ${name}`.trim()}});
+      out.push({seat, kind: 'react', message: {...base, tag: 'yatzy-react-' + room, title: label(next, o), body: `${r.e} ${name}`.trim()}});
     }
   }
   return out;
+}
+// Whether a notification held back earlier (the app seemed open) still fits the table now.
+export function stillDue(kind, seat, st){
+  if (!st || !st.seats[seat]) return false;
+  if (kind === 'turn') return st.status === 'playing' && st.turn === seat;
+  if (kind === 'revanche') return st.status === 'playing';
+  if (kind === 'over') return st.status === 'over';
+  return true;
 }
 export const testMessage = (room, appUrl) =>
   ({tag: 'yatzy-test-' + room, url: appUrl + '#' + room, title: 'Test 👍', body: 'So sehen deine Yatzy-Benachrichtigungen aus.'});

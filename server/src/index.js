@@ -11,11 +11,14 @@
 // What the server does with the data is in logic.js, the push sending in push.js.
 
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, mergeCode, pushMessages, testMessage } from './logic.js';
+import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, mergeCode, pushMessages, stillDue, testMessage } from './logic.js';
 import { subscription, sendPush } from './push.js';
 
 // A phone counts as "looking at the table" while its app is in front and it pinged lately.
 const AWAY_AFTER = 45000;
+// A notification held back because the app seemed open is checked again after this long. A phone
+// that went to the background without saying so (iOS froze it too fast) has stopped pinging by then.
+const RECHECK_AFTER = 75000;
 
 export default {
   async fetch(request, env){
@@ -119,18 +122,47 @@ export class Table extends DurableObject {
     });
   }
   async notify(before, after){
-    for (const {seat, message} of pushMessages(before, after, this.room(), this.env.APP_URL))
+    const later = [];
+    for (const {seat, kind, message} of pushMessages(before, after, this.room(), this.env.APP_URL)){
       if (!this.looking(seat)) await this.send(seat, message);
+      else if (this.push[seat]) later.push({seat, kind, message, at: Date.now()});
+    }
+    if (!later.length) return;
+    const pending = ((await this.ctx.storage.get('later')) || []).filter(p => !later.some(l => l.seat === p.seat && l.kind === p.kind));
+    await this.ctx.storage.put('later', [...pending, ...later]);
+    if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + RECHECK_AFTER);
+  }
+  // Was this phone's app still running after `t`? Then it showed the change on screen.
+  sawSince(seat, t){
+    const id = this.table.data && this.table.data.seats[seat] && this.table.data.seats[seat].id;
+    return this.ctx.getWebSockets().some(ws => {
+      const a = ws.deserializeAttachment() || {};
+      const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
+      return a.id === id && ((pinged && pinged.getTime() > t) || (a.at || 0) > t);
+    });
+  }
+  async alarm(){
+    const now = Date.now();
+    const keep = [];
+    for (const p of (await this.ctx.storage.get('later')) || []){
+      if (now < p.at + RECHECK_AFTER - 1000){ keep.push(p); continue; }
+      if (!this.sawSince(p.seat, p.at) && !this.looking(p.seat) && stillDue(p.kind, p.seat, this.table.data)) await this.send(p.seat, p.message);
+    }
+    await this.ctx.storage.put('later', keep);
+    if (keep.length) await this.ctx.storage.setAlarm(Math.min(...keep.map(p => p.at)) + RECHECK_AFTER);
   }
   async send(seat, message){
     const sub = this.push[seat];
-    if (!sub || !this.env.VAPID_PRIVATE_JWK) return null;
+    if (!sub) return null;
+    console.log(`push ${this.room()} ${seat}: ${message.title}`);   // visible with `wrangler tail`
+    if (!this.env.VAPID_PRIVATE_JWK) return null;
     try {
       const res = await sendPush(this.env, sub, message);
+      if (!res.ok) console.log(`push ${this.room()} ${seat} failed: ${res.status}`);
       // the phone dropped this address (app deleted, notifications switched off)
       if (res.status === 404 || res.status === 410){ delete this.push[seat]; await this.ctx.storage.put('push', this.push); }
       return res;
-    } catch { return null; }
+    } catch (e) { console.log(`push ${this.room()} ${seat} failed: ${e}`); return null; }
   }
   room(){ return this.name; }
   webSocketClose(ws, code){ try { ws.close(code); } catch {} }
