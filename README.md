@@ -54,8 +54,9 @@ Mit einem kostenlosen GitHub-Konto muss das Repository für Pages öffentlich se
 1. Öffne die Seite auf deinem iPhone. Die Adresse bekommt automatisch einen Raum-Code, zum Beispiel `…/#raum-k3x9q2mf7a1b`. Das ist euer Tisch.
 2. Gib deinen Namen ein und tippe auf **Platz nehmen**.
 3. Tippe auf **Link senden** und schick den Link per iMessage oder WhatsApp.
-4. Die zweite Person öffnet den Link und nimmt Platz.
-5. Tragt im Namensformular eure Namen ein und tippt auf **Spiel starten**.
+4. Die zweite Person öffnet den Link und nimmt Platz. Damit startet das Spiel, wer den Tisch eröffnet hat, beginnt.
+
+**Revanche** startet das nächste Spiel sofort, abwechselnd beginnt die andere Person. Deinen Namen änderst du jederzeit, indem du oben auf ihn tippst.
 
 Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür musst du dich im Formular «Marcel» nennen.
 

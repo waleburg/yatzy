@@ -145,11 +145,44 @@ export function undoEntry(s, seat){
   s.dice = L.dice; s.held = L.held; s.rollsLeft = L.rollsLeft;
   s.last = null;
 }
+// A rematch starts right away with the same players; only a table without both players
+// goes back to waiting (online) or to the name form (one phone).
 export function newRound(s, onePhone){
   s.scores = {p1:{},p2:{}}; s.last = null;
   s.starter = other(s.starter); s.turn = s.starter;
-  s.status = (s.seats.p1 && s.seats.p2) || onePhone ? 'setup' : 'waiting';
+  s.status = s.seats.p1 && s.seats.p2 ? 'playing' : onePhone ? 'setup' : 'waiting';
   resetTurn(s);
+}
+// Online: sit down with your name (and symbol). When the second person sits down the game
+// starts by itself, with the first person to begin. Returns the seat, 'full', or false when
+// this device already has a seat.
+export function takeSeat(s, id, nick, emoji = ''){
+  if (SEATS.some(seat => s.seats[seat] && s.seats[seat].id === id)) return false;
+  const seat = !s.seats.p1 ? 'p1' : !s.seats.p2 ? 'p2' : null;
+  if (!seat) return 'full';
+  s.seats[seat] = {id, nick: String(nick || '').slice(0, 16), emoji: '', react: null, notes: []};
+  setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : null);
+  if (s.seats.p1 && s.seats.p2 && s.status === 'waiting'){
+    s.status = 'playing'; s.turn = s.starter;
+    resetTurn(s);
+  }
+  return seat;
+}
+// Change your own name and symbol at any time.
+export function editSeat(s, seat, nick, emoji){
+  const v = s.seats[seat];
+  if (!v) return false;
+  const n = String(nick || '').trim().replace(/\s+/g, ' ').slice(0, 16);
+  if (n) v.nick = n;
+  setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : '');
+}
+// 🥦 and 💚 go together: picking one gives the other person the other one.
+// null means "no choice made": then you get the one your partner left over, if any.
+function setEmoji(s, seat, emoji){
+  const v = s.seats[seat], o = s.seats[other(seat)];
+  if (emoji === null){ v.emoji = o && o.emoji ? EMOJIS.find(x => x !== o.emoji) : ''; return; }
+  v.emoji = emoji;
+  if (o) o.emoji = emoji ? EMOJIS.find(x => x !== emoji) : '';
 }
 export function beginGame(s, names, emojis){
   if (s.status !== 'setup') return false;

@@ -88,6 +88,8 @@ button{font:inherit;color:inherit}
 .chip .nm{min-width:0;font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px}
 .chip .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.chip.edit{cursor:pointer}
+.chip .pen{margin-left:6px;letter-spacing:0;font-size:12px}
 .chip .you{flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:999px;background:var(--felt-fg);color:var(--felt-deep)}
 .chip .tot{font-family:var(--font-pen);font-weight:700;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
 .status{margin-top:12px;min-height:44px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
@@ -239,6 +241,10 @@ td.cell.tap{cursor:pointer}
 .tbl .vs .p1{color:var(--ink1)} .tbl .vs .p2{color:var(--ink2)} .tbl .vs i{font-style:normal;font-weight:400;color:var(--muted);font-size:13px}
 .tbl .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tbl .here-tag{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--print)}
+.sheet .emo{border-color:var(--grid-strong);background:var(--paper)}
+.sheet .emo[aria-pressed="true"]{border-color:var(--gold);background:rgba(227,167,47,.2)}
+#seatForm{display:flex;flex-direction:column;gap:10px}
+#seatName{min-height:48px;border-radius:10px;border:1.5px solid var(--seat);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;padding:0 12px}
 .keybox{margin-top:16px;padding-top:12px;border-top:1px solid var(--grid)}
 .keybox p{margin:0 0 8px}
 .keybox form{display:flex;gap:8px}
@@ -270,6 +276,7 @@ details li{margin:3px 0}
 .share-row{display:flex;gap:8px}
 .share input{flex:1;min-width:0;min-height:48px;border-radius:12px;border:1.5px solid rgba(255,255,255,.3);background:rgba(0,0,0,.18);color:var(--felt-fg);font:inherit;font-size:14px;padding:0 12px}
 .share .btn{flex:none}
+#share input{min-height:40px;font-size:13px;text-align:center;color:var(--felt-muted)}
 </style>
 </head>
 <body>
@@ -315,17 +322,15 @@ details li{margin:3px 0}
         <input id="nick" name="nick" maxlength="16" autocomplete="nickname" placeholder="Dein Name" aria-label="Dein Name">
         <button class="btn" type="submit" id="joinBtn">Platz nehmen</button>
       </form>
+      <div class="pick" id="joinPick" role="group" aria-label="Dein Symbol" hidden><button type="button" class="emo" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div>
     </div>
     <div class="share" id="reclaim" hidden>
       <p>Beide Plätze sind besetzt. Neues Handy oder neuer Browser? Dann wähle deinen Platz:</p>
       <div class="share-row" id="reclaimBtns"></div>
     </div>
     <div class="share" id="share" hidden>
-      <p>Schick diesen Link an die zweite Person. Damit kommt sie an euren Tisch.</p>
-      <div class="share-row">
-        <input id="shareUrl" readonly aria-label="Link zu eurem Tisch">
-        <button class="btn" type="button" id="shareBtn">Link senden</button>
-      </div>
+      <button class="btn" type="button" id="shareBtn">Link senden</button>
+      <input id="shareUrl" readonly aria-label="Link zu eurem Tisch">
     </div>
   </section>
 
@@ -403,15 +408,28 @@ details li{margin:3px 0}
     </div>
   </div>
 </div>
+<div class="sheet" id="seatSheet" hidden>
+  <div class="sheet-card" id="seatCard" role="dialog" aria-modal="true" aria-labelledby="seatTitle">
+    <div class="sheet-head"><strong id="seatTitle">Dein Name</strong><span id="seatSub"></span></div>
+    <form id="seatForm">
+      <input id="seatName" maxlength="16" autocomplete="off" aria-label="Name">
+      <div class="pick" id="seatPick" role="group" aria-label="Symbol"><button type="button" class="emo" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div>
+      <div class="row">
+        <button class="lnk" type="submit">Speichern</button>
+        <button class="lnk" type="button" id="seatClose">Abbrechen</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="toast" id="toast" hidden></div>
 <button class="note-love" id="love" type="button" hidden aria-live="polite"></button>
 
 <script type="module">
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
-  rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
+  rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
   boxOptions, markBox, mergeResults, mergeRooms, normCode, ROOM_RE
-} from './game.js';
+} from './game.js?v=3';   // raise the number when game.js changes, so no phone mixes old and new
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
 //  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
@@ -608,22 +626,20 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       Object.assign(s, fresh);
     }, true);
   }
-  function join(nick){
+  function join(nick, emoji){
     if (mode !== 'remote' || joining) return;
     nick = nick.trim().replace(/\s+/g,' ').slice(0,16);
+    try { if (nick) localStorage.setItem('yatzy-nick', nick); } catch(_) {}
     joining = true; render();
     chain = chain.then(async () => {
       try {
         // A transaction keeps two people from grabbing the same seat at once.
         let full = false;
         await ref.transact(raw => {
-          full = false;
           const st = raw ? clean(raw) : blank();
-          if (mySeat(st)) return null;
-          const seat = !st.seats.p1 ? 'p1' : !st.seats.p2 ? 'p2' : null;
-          if (!seat){ full = true; return null; }
-          st.seats[seat] = {id: myId, nick};
-          if (st.seats.p1 && st.seats.p2 && st.status === 'waiting'){ st.status = 'setup'; st.turn = st.starter; }
+          const seat = takeSeat(st, myId, nick, emoji);
+          full = seat === 'full';
+          if (!seat || full) return null;
           st.updatedAt = new Date().toISOString();
           return st;
         });
@@ -641,8 +657,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     let st = null;
     try { st = JSON.parse(localStorage.getItem(LS) || 'null'); } catch(_) {}
     S = st ? clean(st) : blank();
-    const started = KEYS.some(k => S.scores.p1[k] != null || S.scores.p2[k] != null);
-    S.status = S.status === 'over' ? 'over' : started ? 'playing' : 'setup';
+    // Without names yet the name form comes first; otherwise the game goes on where it was.
+    if (!S.seats.p1 || !S.seats.p2) S.status = 'setup';
+    else if (S.status === 'waiting') S.status = 'playing';
     render();
   }
 
@@ -693,6 +710,34 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   $('pickClose').addEventListener('click', closePicker);
   $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && picking) closePicker(); });
+
+  // ---------- change a name and symbol (tap the name at the top) ----------
+  let seatEditing = null, seatEmoji = '';
+  function openSeat(seat){
+    const v = S && S.seats[seat];
+    if (!v) return;
+    seatEditing = seat; seatEmoji = v.emoji || '';
+    $('seatCard').style.setProperty('--seat', `var(--ink${seat === 'p1' ? 1 : 2})`);
+    $('seatTitle').textContent = mode === 'remote' ? 'Dein Name' : `Name von ${seatName(seat)}`;
+    $('seatSub').textContent = secret ? 'Name und Symbol kannst du jederzeit ändern.' : 'Den Namen kannst du jederzeit ändern.';
+    $('seatName').value = v.nick || '';
+    $('seatPick').hidden = !secret;
+    drawSeatPick();
+    $('seatSheet').hidden = false;
+    $('seatName').focus({preventScroll: true});
+  }
+  function drawSeatPick(){ $('seatPick').querySelectorAll('.emo').forEach(b => b.setAttribute('aria-pressed', seatEmoji === b.dataset.emo ? 'true' : 'false')); }
+  function closeSeat(){ seatEditing = null; $('seatSheet').hidden = true; }
+  $('seatPick').querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => { seatEmoji = seatEmoji === b.dataset.emo ? '' : b.dataset.emo; drawSeatPick(); }));
+  $('seatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const seat = seatEditing, nick = $('seatName').value, emo = seatEmoji;
+    closeSeat();
+    if (seat) commit(s => editSeat(s, seat, nick, emo), mode === 'remote');
+  });
+  $('seatClose').addEventListener('click', closeSeat);
+  $('seatSheet').addEventListener('click', e => { if (e.target === $('seatSheet')) closeSeat(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && seatEditing) closeSeat(); });
 
   // Finished paper games go into the history of the online table remembered on this phone.
   // Each game is known by its end time; this phone notes what it has sent, so a game is
@@ -804,14 +849,23 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       const c = document.createElement('div');
       c.className = 'chip' + (seat === 'p2' ? ' s2' : '') + (active ? ' turn' : playing ? ' idle' : '');
       const role = document.createElement('span'); role.className = 'role';
-      role.textContent = !taken ? 'Freier Platz' : active ? 'Am Zug' : playing ? 'Wartet' : st.status === 'over' ? 'Endstand' : 'Bereit';
+      role.textContent = (isMe(seat) ? 'Du · ' : '') + (!taken ? 'Freier Platz' : active ? 'Am Zug' : playing ? 'Wartet' : st.status === 'over' ? 'Endstand' : 'Bereit');
+      // your own name (online) or either name (one phone) can be tapped to change it
+      const editable = !!st && !!st.seats[seat] && st.status !== 'setup' && (isMe(seat) || mode === 'local');
+      if (editable){
+        const pen = document.createElement('span'); pen.className = 'pen'; pen.textContent = '✎'; pen.setAttribute('aria-hidden', 'true');
+        role.appendChild(pen);
+        c.classList.add('edit'); c.tabIndex = 0; c.setAttribute('role', 'button');
+        c.setAttribute('aria-label', `Name${secret ? ' und Symbol' : ''} von ${seatName(seat)} ändern`);
+        c.addEventListener('click', () => openSeat(seat));
+        c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSeat(seat); } });
+      }
       const line = document.createElement('div'); line.className = 'line';
       const nm = document.createElement('span'); nm.className = 'nm';
       const dot = document.createElement('span'); dot.className = 'dot';
       const label = document.createElement('span'); label.className = 'label';
       label.textContent = taken ? seatLabel(seat) : '—';
       nm.append(dot, label);
-      if (isMe(seat)){ const y = document.createElement('span'); y.className = 'you'; y.textContent = 'Du'; nm.appendChild(y); }
       const tot = document.createElement('span'); tot.className = 'tot';
       tot.textContent = st ? totals(st.scores[seat]).total : 0;
       line.append(nm, tot); c.append(role, line); pl.appendChild(c);
@@ -827,7 +881,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (mode === 'connecting') main = 'Der Tisch wird vorbereitet…';
     else if (!st || st.status === 'waiting'){
       const first = st && SEATS.find(s => st.seats[s]);
-      if (me){ main = 'Warten auf die zweite Person'; sub = 'Sobald sie den Link öffnet und Platz nimmt, geht es los.'; }
+      if (me){ main = 'Warten auf die zweite Person'; sub = 'Schick ihr den Link. Sobald sie Platz nimmt, geht es los.'; }
       else main = first ? `${seatName(first)} wartet auf eine zweite Person` : 'Noch sitzt niemand am Tisch';
     } else if (st.status === 'setup'){
       if (mode === 'local' || me){ main = 'Neues Spiel'; sub = 'Tragt eure Namen ein und startet das Spiel.'; }
@@ -900,8 +954,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!$('undoBtn').hidden) $('undoBtn').setAttribute('aria-label', `${st.last.pts} bei ${CATS.find(c => c.k === st.last.cat).n} zurücknehmen`);
     const inSetup = !!st && st.status === 'setup';
     const isOver = !!st && st.status === 'over';
-    $('controls').hidden = inSetup || (paper && !isOver) || (mode === 'remote' && !me && !(st && st.status !== 'waiting'));
-    $('dice').hidden = inSetup || isOver || paper;
+    const waiting = mode !== 'local' && (!st || st.status === 'waiting');
+    $('controls').hidden = inSetup || waiting || (paper && !isOver);
+    $('dice').hidden = inSetup || isOver || paper || waiting;
     $('rolls').hidden = paper;
     renderOver(st, isOver);
     document.querySelector('.tray').classList.toggle('static', !playing);
@@ -912,7 +967,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (canSetup){
       $('setupForm').classList.toggle('secret', secret);
       if (!setupVisible) setupEmoji = {p1: (st.seats.p1 && st.seats.p1.emoji) || '', p2: (st.seats.p2 && st.seats.p2.emoji) || ''};
-      document.querySelectorAll('.emo').forEach(b => b.setAttribute('aria-pressed', setupEmoji[b.dataset.seat] === b.dataset.emo ? 'true' : 'false'));
+      document.querySelectorAll('#setupForm .emo').forEach(b => b.setAttribute('aria-pressed', setupEmoji[b.dataset.seat] === b.dataset.emo ? 'true' : 'false'));
       for (const seat of SEATS){
         const inp = $('name-' + seat);
         if (!setupVisible) delete inp.dataset.dirty;
@@ -930,10 +985,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('join').hidden = !showJoin;
     if (showJoin){
       const nick = $('nick');
+      if (!nick.value && document.activeElement !== nick){ try { nick.value = localStorage.getItem('yatzy-nick') || ''; } catch(_) {} }
+      $('joinPick').hidden = !secret;
+      $('joinPick').querySelectorAll('.emo').forEach(b => b.setAttribute('aria-pressed', joinEmoji === b.dataset.emo ? 'true' : 'false'));
       $('joinBtn').disabled = joining;
       $('joinBtn').textContent = joining ? 'Einen Moment…' : 'Platz nehmen';
       const firstSeated = st && SEATS.find(s => st.seats[s]);
-      $('joinText').textContent = firstSeated ? `${seatName(firstSeated)} sitzt schon am Tisch. Nimm den anderen Platz, um zu beginnen.` : 'Zwei Plätze am Tisch. Nimm einen und schick dann den Link an die zweite Person.';
+      $('joinText').textContent = firstSeated ? `${seatLabel(firstSeated)} sitzt schon am Tisch. Nimm Platz, dann geht es gleich los.` : 'Neuer Tisch. Gib deinen Namen ein und nimm Platz. Danach schickst du den Link an die zweite Person.';
     }
 
     // score pad
@@ -997,7 +1055,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         if (paper) h = `${seatName(t)} ist dran: Tippe auf ein Feld in der ${colour(t)}n Spalte und wähle die Punkte. Eingetragenes kannst du antippen und ändern.`;
         else if (myTurn && mode === 'local') h = st.dice ? `${seatName(t)}: Tippe auf ein umrandetes Feld in der ${colour(t)}n Spalte.` : `${seatName(t)} trägt in der ${colour(t)}n Spalte ein. Zuerst würfeln.`;
         else if (myTurn) h = st.dice ? 'Tippe auf ein umrandetes Feld in deiner Spalte, um die Punkte einzutragen.' : `Deine Spalte ist die ${colour(t)}. Würfle zuerst, dann kannst du eintragen.`;
-        else if (me) h = `${seatName(t)} trägt gerade ein. Deine ${colour(me)} Spalte ist gesperrt, bis du wieder dran bist.`;
+        else if (me) h = `${seatName(t)} ist dran. Deine ${colour(me)} Spalte ist gesperrt, bis du wieder dran bist.`;
         else h = `Du schaust zu. ${seatName(t)} ist dran.`;
         hint.style.setProperty('--seat', `var(--ink${t === 'p1' ? 1 : 2})`);
       }
@@ -1027,7 +1085,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
     $('footShare').hidden = mode !== 'remote';
-    $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && st.status !== 'waiting');
+    $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && (st.status === 'playing' || st.status === 'over'));
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
     if (offline && !wasOffline) toast('Keine Verbindung. Deine Züge werden gesendet, sobald du wieder online bist.');
@@ -1163,7 +1221,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   addEventListener('offline', () => render());
   $('love').addEventListener('click', () => { clearTimeout(loveTimer); $('love').hidden = true; });
   for (const seat of SEATS) $('name-' + seat).addEventListener('input', e => { e.target.dataset.dirty = '1'; });
-  document.querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#setupForm .emo').forEach(b => b.addEventListener('click', () => {
     const seat = b.dataset.seat, emo = b.dataset.emo;
     setupEmoji[seat] = emo;
     setupEmoji[other(seat)] = EMOJIS.find(x => x !== emo);
@@ -1174,7 +1232,13 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const n = seat => $('name-' + seat).value.trim().replace(/\s+/g, ' ').slice(0, 16);
     startGame({p1: n('p1'), p2: n('p2')}, setupEmoji);
   });
-  $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value); });
+  $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value, joinEmoji); });
+  // your symbol when you sit down (only with the 🥦/💚 secret unlocked); tap again to unpick
+  let joinEmoji = '';
+  $('joinPick').querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => {
+    joinEmoji = joinEmoji === b.dataset.emo ? '' : b.dataset.emo;
+    render();
+  }));
   function ask(text, fn){ pendingConfirm = fn; $('confirmText').textContent = text; render(); }
   $('newGameBtn').addEventListener('click', () => ask('Neues Spiel starten? Der aktuelle Spielstand geht verloren.', newGame));
   $('clearBtn').addEventListener('click', () => ask('Beide Plätze und die Siegesbilanz löschen? Danach müssen sich alle neu hinsetzen.', clearSeats));
@@ -1296,7 +1360,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (r2 && (!r1 || r1.n !== r2.n) && Math.abs(Date.now() - r2.n) < 120000){ showReaction(r2.e, o); chime(SOUND_REACT); }
     const wasMine = prev.status === 'playing' && prev.turn === seat;
     if (next.status === 'playing' && next.turn === seat && !wasMine) chime(SOUND_TURN);
-    else if (prev.status === 'waiting' && next.status === 'setup') chime(SOUND_JOIN);
+    else if (prev.status === 'waiting' && next.status !== 'waiting') chime(SOUND_JOIN);
     else if (prev.status === 'playing' && next.status === 'over') chime(SOUND_OVER);
   }
   $('soundBtn').addEventListener('click', () => {

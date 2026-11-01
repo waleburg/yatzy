@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   KEYS, score, totals, blank, clean, rollDice, toggleHeld, enterScore,
   undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults, mergeRooms, normCode
+  boxOptions, markBox, mergeResults, mergeRooms, normCode, takeSeat, editSeat
 } from '../game.js';
 
 // A game in progress: both seats taken, p1's turn, dice already rolled once.
@@ -125,21 +125,52 @@ test('history keeps at most 50 games', () => {
   assert.equal(s.history[0].at, '1');
 });
 
-test('a new game swaps who starts and keeps players and history', () => {
+test('a rematch starts at once, swaps who starts and keeps players and history', () => {
   const s = game();
   s.history = [{at: 'x', p1: 1, p2: 2, n1: '', n2: '', y1: 0, y2: 0}];
+  s.status = 'over';
   newRound(s, false);
-  assert.equal(s.status, 'setup');
+  assert.equal(s.status, 'playing', 'no name form in between');
   assert.equal(s.starter, 'p2');
+  assert.equal(s.turn, 'p2');
   assert.deepEqual(s.scores, {p1: {}, p2: {}});
   assert.equal(s.history.length, 1);
   assert.equal(s.seats.p1.nick, 'Marcel');
+});
 
+test('one phone: the first game starts with the name form', () => {
+  const s = blank();
+  s.status = 'setup';
+  newRound(s, true);
+  assert.equal(s.status, 'setup', 'nobody named yet');
   beginGame(s, {p1: 'Marcel', p2: 'Brokkoli'}, {p1: '💚', p2: '🥦'});
   assert.equal(s.status, 'playing');
-  assert.equal(s.turn, 'p2');
   assert.equal(s.seats.p2.emoji, '🥦');
-  assert.equal(s.seats.p1.id, 'a', 'the device that owns the seat stays the same');
+  assert.equal(s.seats.p1.id, 'local-p1');
+});
+
+test('the game starts by itself when the second person sits down', () => {
+  const s = blank();
+  assert.equal(takeSeat(s, 'a', 'Marcel', '💚'), 'p1');
+  assert.equal(s.status, 'waiting');
+  assert.equal(takeSeat(s, 'a', 'Marcel again'), false, 'one seat per device');
+  assert.equal(takeSeat(s, 'b', 'Brokkoli'), 'p2');
+  assert.equal(s.status, 'playing');
+  assert.equal(s.turn, 'p1', 'whoever opened the table begins');
+  assert.equal(s.seats.p2.emoji, '🥦', 'the partner gets the other symbol without seeing the picker');
+  assert.equal(takeSeat(s, 'c', 'Anna'), 'full');
+});
+
+test('your own name and symbol can be changed at any time', () => {
+  const s = game();
+  editSeat(s, 'p2', '  Brokkoli   Queen ', '🥦');
+  assert.equal(s.seats.p2.nick, 'Brokkoli Queen');
+  assert.equal(s.seats.p2.emoji, '🥦');
+  assert.equal(s.seats.p1.emoji, '💚', 'the partner gets the other one');
+  editSeat(s, 'p2', '', '');
+  assert.equal(s.seats.p2.nick, 'Brokkoli Queen', 'an empty name keeps the old one');
+  assert.equal(s.seats.p1.emoji, '', 'no symbol: the pair is gone');
+  assert.equal(editSeat(blank(), 'p1', 'x', ''), false);
 });
 
 test('clean() rejects broken or hostile data', () => {
