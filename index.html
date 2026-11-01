@@ -265,8 +265,6 @@ summary{min-height:44px;display:flex;align-items:center;font-weight:600;color:va
 details ul{margin:0 0 12px;padding-left:18px;color:var(--fg)}
 details li{margin:3px 0}
 .note{font-size:13px;color:var(--muted);text-wrap:pretty}
-.pushbox{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:10px;background:var(--paper);border:1px solid var(--grid)}
-.pushbox p{margin:0;color:var(--fg);font-size:14px;text-wrap:pretty}
 
 /* love note: a slip of paper from the score pad, written in pen */
 .note-love{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:21;width:min(340px,calc(100% - 40px));transform:translateX(-50%) rotate(-2deg);
@@ -361,14 +359,15 @@ details li{margin:3px 0}
       <button class="lnk danger" type="button" id="confirmYes">Ja</button>
     </div>
     <div class="row"><button class="lnk" type="button" id="viewBtn"></button></div>
-    <div class="pushbox" id="pushBox" hidden>
-      <p id="pushText"></p>
+    <details id="pushBox" hidden>
+      <summary id="pushSum">🔔 Benachrichtigungen</summary>
+      <p class="note" id="pushText"></p>
       <div class="row">
         <button class="lnk" type="button" id="pushOn" hidden>Einschalten</button>
         <button class="lnk" type="button" id="pushTest" hidden>Test</button>
         <button class="lnk" type="button" id="pushOff" hidden>Ausschalten</button>
       </div>
-    </div>
+    </details>
     <details id="statsBox" hidden>
       <summary>Statistik</summary>
       <div id="stats"></div>
@@ -447,7 +446,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '3 · 01.11.2026';
+const VERSION = '4 · 01.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1476,77 +1475,107 @@ const VERSION = '3 · 01.11.2026';
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const pushReady = () => !!server && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && (!isIOS || standalone);
   const b64uBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
-  let pushBusy = false, pushChecked = false;
-  // the tables this phone gets notifications for
-  function pushRooms(){ try { return JSON.parse(localStorage.getItem('yatzy-push') || '{}') || {}; } catch(_) { return {}; } }
-  function setPushRoom(on){
-    const r = pushRooms();
-    if (on) r[room] = 1; else delete r[room];
-    try { localStorage.setItem('yatzy-push', JSON.stringify(r)); } catch(_) {}
+  let pushBusy = false, pushChecked = false, pushAutoOpen = false;
+  // Switched on once per phone: then every table this phone sits at gets its push address.
+  // 'yatzy-push' keeps those tables (room → seat), so switching off reaches all of them.
+  const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch(_) { return d; } };
+  const saveJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} };
+  const pushRooms = () => loadJSON('yatzy-push', {});
+  // the phone-wide switch; phones from before it had only the list of tables
+  function pushWanted(){
+    let on = null;
+    try { on = localStorage.getItem('yatzy-push-on'); } catch(_) {}
+    return on === null ? Object.keys(pushRooms()).length > 0 : on === 'true';
   }
   async function pushAddress(create){
     const reg = await navigator.serviceWorker.ready;
     return await reg.pushManager.getSubscription()
       || (create ? await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64uBytes(VAPID_PUBLIC)}) : null);
   }
-  async function tellServer(me, sub, test = false){
-    const r = await cloudCall(`/tables/${room}/push`, {seat: me, id: myId, sub: sub ? sub.toJSON() : null, test});
+  async function tellServer(at, seat, sub, test = false){
+    const r = await cloudCall(`/tables/${at}/push`, {seat, id: myId, sub: sub ? sub.toJSON() : null, test});
     if (!r || !r.ok) throw r;
     return r;
   }
-  // On start: a phone's push address can change, so a table with notifications on gets it again.
+  // On start (and on a new table): give this table the phone's current push address,
+  // which can change, so it is sent every time the app starts.
   async function refreshPush(me){
-    try { const sub = await pushAddress(false); if (sub) await tellServer(me, sub); else setPushRoom(false); } catch(_) {}
+    try {
+      const sub = await pushAddress(false);
+      if (!sub) return;
+      await tellServer(room, me, sub);
+      saveJSON('yatzy-push', {...pushRooms(), [room]: me});
+    } catch(_) {}
     render();
   }
   function renderPush(st, me){
     const show = !!server && mode === 'remote' && !!me && !!st && !!st.seats[me];
-    $('pushBox').hidden = !show;
+    const box = $('pushBox');
+    box.hidden = !show;
     if (!show) return;
     const text = $('pushText');
     $('pushOn').hidden = $('pushOff').hidden = $('pushTest').hidden = true;
     if (!pushReady()){
+      $('pushSum').textContent = '🔔 Benachrichtigungen';
       text.textContent = isIOS && !standalone
-        ? '🔔 Benachrichtigungen gibt es auf dem iPhone nur in der App auf dem Home-Bildschirm: in Safari auf Teilen › Zum Home-Bildschirm tippen und Yatzy dort öffnen.'
-        : '🔔 Dieser Browser kann keine Benachrichtigungen empfangen.';
+        ? 'Benachrichtigungen gibt es auf dem iPhone nur in der App auf dem Home-Bildschirm: in Safari auf Teilen › Zum Home-Bildschirm tippen und Yatzy dort öffnen.'
+        : 'Dieser Browser kann keine Benachrichtigungen empfangen.';
       return;
     }
     if (Notification.permission === 'denied'){
-      text.textContent = '🔕 Benachrichtigungen sind blockiert. Erlaube sie in den iPhone-Einstellungen unter Mitteilungen › Yatzy.';
+      $('pushSum').textContent = '🔕 Benachrichtigungen: blockiert';
+      text.textContent = 'Erlaube sie in den iPhone-Einstellungen unter Mitteilungen › Yatzy.';
       return;
     }
-    const on = !!pushRooms()[room] && Notification.permission === 'granted';
+    const on = pushWanted() && Notification.permission === 'granted';
     if (on && !pushChecked){ pushChecked = true; refreshPush(me); }
     if (on){
-      text.textContent = '🔔 Benachrichtigungen sind an. Du bekommst eine Nachricht, wenn du dran bist, das Spiel fertig ist, jemand eine Revanche will oder dir ein Emoji schickt, auch bei gesperrtem Handy.';
+      $('pushSum').textContent = '🔔 Benachrichtigungen: an';
+      text.textContent = 'Du bekommst eine Nachricht, wenn du dran bist, das Spiel fertig ist, jemand eine Revanche will oder dir ein Emoji schickt, auch bei gesperrtem Handy. Das gilt für alle Tische auf diesem Handy.';
       $('pushTest').hidden = $('pushOff').hidden = false;
     } else {
-      text.textContent = '🔔 Lass dich benachrichtigen, wenn du dran bist, auch bei gesperrtem Handy.';
+      $('pushSum').textContent = '🔔 Benachrichtigungen: aus';
+      text.textContent = 'Lass dich benachrichtigen, wenn du dran bist, auch bei gesperrtem Handy. Einmal einschalten genügt, dann gilt es für alle Tische.';
       $('pushOn').hidden = false;
       $('pushOn').disabled = pushBusy;
+      // offered open until you close it once; after that it waits closed at the bottom
+      if (!loadJSON('yatzy-push-seen', false) && !box.open){ pushAutoOpen = true; box.open = true; }
     }
   }
+  $('pushBox').addEventListener('toggle', () => {
+    if (pushAutoOpen){ pushAutoOpen = false; return; }
+    if (!$('pushBox').open) saveJSON('yatzy-push-seen', true);
+  });
   $('pushOn').addEventListener('click', async () => {
     const me = mySeat();
     if (!me || pushBusy) return;
     pushBusy = true; render();
     try {
       if (await Notification.requestPermission() !== 'granted'){ toast('Ohne deine Erlaubnis kann Yatzy keine Benachrichtigungen schicken.'); return; }
-      const r = await tellServer(me, await pushAddress(true), true);
-      setPushRoom(true); pushChecked = true;
+      const r = await tellServer(room, me, await pushAddress(true), true);
+      saveJSON('yatzy-push-on', true); saveJSON('yatzy-push', {...pushRooms(), [room]: me}); saveJSON('yatzy-push-seen', true);
+      pushChecked = true; $('pushBox').open = false;
       toast(r.status && r.status < 300 ? 'Benachrichtigungen sind an. Eine Test-Nachricht ist unterwegs.' : 'Benachrichtigungen sind an, aber die Test-Nachricht ging nicht durch. Tippe später auf «Test».');
     } catch(e){ toast('Das hat nicht geklappt. Versuch es nochmals oder starte die App neu.'); }
     finally { pushBusy = false; render(); }
   });
   $('pushTest').addEventListener('click', async () => {
     try {
-      const r = await tellServer(mySeat(), await pushAddress(true), true);
+      const r = await tellServer(room, mySeat(), await pushAddress(true), true);
       toast(r.status && r.status < 300 ? 'Test gesendet. Die Nachricht sollte gleich erscheinen.' : 'Der Test ging nicht durch. Schalte die Benachrichtigungen aus und wieder ein.');
     } catch(_) { toast('Der Test ging nicht durch. Prüfe die Verbindung.'); }
   });
+  // Off for the whole phone: every table that has this phone's address forgets it.
   $('pushOff').addEventListener('click', async () => {
-    try { await tellServer(mySeat(), null); setPushRoom(false); toast('Benachrichtigungen für diesen Tisch sind aus.'); }
-    catch(_) { toast('Das ging nicht. Prüfe die Verbindung und versuche es nochmals.'); }
+    const left = pushRooms();
+    for (const [at, seat] of Object.entries(left)){
+      for (const s of SEATS.includes(seat) ? [seat] : SEATS){   // older entries don't know the seat
+        try { await tellServer(at, s, null); delete left[at]; break; } catch(_) {}
+      }
+    }
+    saveJSON('yatzy-push', left);
+    saveJSON('yatzy-push-on', false);
+    toast(Object.keys(left).length ? 'Benachrichtigungen sind aus. Ein paar Tische waren nicht erreichbar, versuche es später nochmals.' : 'Benachrichtigungen sind aus.');
     render();
   });
   // Opening the app clears the red badge and the notifications of this table.
