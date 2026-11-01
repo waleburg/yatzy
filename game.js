@@ -65,7 +65,8 @@ export function clean(raw){
       nick: str(v.nick, 16),
       emoji: EMOJIS.includes(v.emoji) ? v.emoji : '',
       react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null,
-      notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : []
+      notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : [],
+      yz: int(v.yz, 0, 15) ? v.yz : 0
     };
     const sc = raw.scores && raw.scores[seat];
     if (sc && typeof sc === 'object') for (const k of KEYS) if (int(sc[k], 0, 50)) s.scores[seat][k] = sc[k];
@@ -85,7 +86,7 @@ export function clean(raw){
       Object.assign(s.last, {dice: u.dice.slice(), held: u.held.map(Boolean), rollsLeft: u.rollsLeft, over: !!u.over});
   }
   if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-HISTORY_MAX)
-    .map(h => ({at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,1) ? h.y1 : 0, y2: int(h.y2,0,1) ? h.y2 : 0}));
+    .map(h => ({at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,15) ? h.y1 : 0, y2: int(h.y2,0,15) ? h.y2 : 0}));
   if (typeof raw.updatedAt === 'string') s.updatedAt = raw.updatedAt.slice(0,40);
   return s;
 }
@@ -108,22 +109,31 @@ export function toggleHeld(s, i){
   if (!s.dice) return false;
   s.held[i] = !s.held[i];
 }
+// Five equal dice count as a Yatzy for the statistics, whichever box they go into.
+const fiveOfAKind = d => !!d && d.every(x => x === d[0]);
+function countYatzy(s, seat, by){
+  const v = s.seats[seat];
+  if (v) v.yz = Math.max(0, (v.yz || 0) + by);
+}
 export function enterScore(s, seat, cat, at = new Date().toISOString()){
   if (!s.dice || s.scores[seat][cat] != null || s.turn !== seat) return false;
   const pts = score(cat, s.dice);
   s.scores[seat][cat] = pts;
+  if (fiveOfAKind(s.dice)) countYatzy(s, seat, 1);
   s.last = {seat, cat, pts, dice: s.dice.slice(), held: s.held.slice(), rollsLeft: s.rollsLeft, over: false};
   if (finishIfFull(s, at)) s.last.over = true;
   else s.turn = other(seat);
   resetTurn(s);
 }
-// Once both columns are full the game is over and goes into the history.
+// Once both columns are full the game is over and goes into the history, with every
+// Yatzy of the game (on the paper sheet there are no dice, so only the 50 in its box counts).
 function finishIfFull(s, at){
   if (filled(s.scores.p1) < 15 || filled(s.scores.p2) < 15) return false;
+  const y = seat => Math.max(s.seats[seat] && s.seats[seat].yz || 0, s.scores[seat].yatzy === 50 ? 1 : 0);
   s.status = 'over';
   s.history = s.history.concat({
     at, p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
-    n1: nameOf('p1', s), n2: nameOf('p2', s), y1: s.scores.p1.yatzy === 50 ? 1 : 0, y2: s.scores.p2.yatzy === 50 ? 1 : 0
+    n1: nameOf('p1', s), n2: nameOf('p2', s), y1: y('p1'), y2: y('p2')
   }).slice(-HISTORY_MAX);
   return true;
 }
@@ -140,6 +150,7 @@ export function undoEntry(s, seat){
   if (!undoAllowed(s, seat)) return false;
   const L = s.last;
   delete s.scores[L.seat][L.cat];
+  if (fiveOfAKind(L.dice)) countYatzy(s, L.seat, -1);
   if (L.over) s.history = s.history.slice(0, -1);
   s.status = 'playing'; s.turn = L.seat;
   s.dice = L.dice; s.held = L.held; s.rollsLeft = L.rollsLeft;
@@ -149,6 +160,7 @@ export function undoEntry(s, seat){
 // goes back to waiting (online) or to the name form (one phone).
 export function newRound(s, onePhone){
   s.scores = {p1:{},p2:{}}; s.last = null;
+  for (const seat of SEATS) if (s.seats[seat]) s.seats[seat].yz = 0;
   s.starter = other(s.starter); s.turn = s.starter;
   s.status = s.seats.p1 && s.seats.p2 ? 'playing' : onePhone ? 'setup' : 'waiting';
   resetTurn(s);
@@ -160,7 +172,7 @@ export function takeSeat(s, id, nick, emoji = ''){
   if (SEATS.some(seat => s.seats[seat] && s.seats[seat].id === id)) return false;
   const seat = !s.seats.p1 ? 'p1' : !s.seats.p2 ? 'p2' : null;
   if (!seat) return 'full';
-  s.seats[seat] = {id, nick: String(nick || '').slice(0, 16), emoji: '', react: null, notes: []};
+  s.seats[seat] = {id, nick: String(nick || '').slice(0, 16), emoji: '', react: null, notes: [], yz: 0};
   setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : null);
   if (s.seats.p1 && s.seats.p2 && s.status === 'waiting'){
     s.status = 'playing'; s.turn = s.starter;
@@ -188,7 +200,7 @@ export function beginGame(s, names, emojis){
   if (s.status !== 'setup') return false;
   for (const seat of SEATS){
     const id = s.seats[seat] ? s.seats[seat].id : 'local-' + seat;
-    s.seats[seat] = Object.assign({react: null, notes: []}, s.seats[seat], {id, nick: names[seat], emoji: emojis[seat] || ''});
+    s.seats[seat] = Object.assign({react: null, notes: []}, s.seats[seat], {id, nick: names[seat], emoji: emojis[seat] || '', yz: 0});
   }
   s.status = 'playing'; s.turn = s.starter;
   resetTurn(s);

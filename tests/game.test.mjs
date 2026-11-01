@@ -99,6 +99,38 @@ test('undo restores the entry until the other person rolls', () => {
   assert.equal(undoAllowed(s, 'p1'), false, 'too late once the other person has rolled');
 });
 
+test('every five of a kind counts as a Yatzy, whichever box it goes into', () => {
+  const s = game({dice: [6, 6, 6, 6, 6]});
+  enterScore(s, 'p1', 'sixes');                                   // a Yatzy written as 30 Sechser
+  assert.equal(s.seats.p1.yz, 1);
+  assert.equal(undoAllowed(s, 'p1'), true);
+  undoEntry(s, 'p1');
+  assert.equal(s.seats.p1.yz, 0, 'undo takes it back');
+  enterScore(s, 'p1', 'yatzy');
+  Object.assign(s, {dice: [2, 2, 2, 2, 2], turn: 'p1', rollsLeft: 1});
+  enterScore(s, 'p1', 'twos');                                    // the second Yatzy of the game
+  assert.equal(s.seats.p1.yz, 2);
+
+  fillAllBut(s.scores.p1, 'chance');
+  fillAllBut(s.scores.p2);
+  Object.assign(s, {dice: [4, 4, 4, 4, 4], turn: 'p1'});
+  enterScore(s, 'p1', 'chance', '2026-11-01T09:00:00.000Z');      // the third, ends the game
+  assert.equal(s.history[0].y1, 3);
+  assert.equal(s.history[0].y2, 0);
+  assert.equal(clean(s).history[0].y1, 3, 'more than one per game survives the sync');
+
+  newRound(s, false);
+  assert.equal(s.seats.p1.yz, 0, 'a new game starts at zero');
+});
+
+test('on the paper sheet the 50 in the Yatzy box counts', () => {
+  const s = game();
+  s.scores.p1 = {}; fillAllBut(s.scores.p1, 'yatzy');
+  fillAllBut(s.scores.p2);
+  markBox(s, 'p1', 'yatzy', 50, '2026-11-01T09:00:00.000Z');
+  assert.equal(s.history[0].y1, 1);
+});
+
 test('the last entry of a game ends it, records history and can be undone', () => {
   const s = game({dice: [6, 6, 6, 6, 6], turn: 'p2'});
   fillAllBut(s.scores.p1);

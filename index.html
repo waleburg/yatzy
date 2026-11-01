@@ -432,7 +432,7 @@ import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
   boxOptions, markBox, mergeResults, mergeRooms, normCode, applyPatch, ROOM_RE
-} from './game.js?v=4';   // raise the number when game.js changes, so no phone mixes old and new
+} from './game.js?v=5';   // raise the number when game.js changes, so no phone mixes old and new
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
 //  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
@@ -515,7 +515,18 @@ const SERVER_URL = '';
     if (mode === 'local'){ saveLocal(); return; }
     if (mode !== 'remote') return;
     const patch = {};
-    for (const k of Object.keys(next)) if (!before || JSON.stringify(next[k]) !== JSON.stringify(before[k])) patch[k] = next[k];
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    for (const k of Object.keys(next)){
+      if (before && same(next[k], before[k])) continue;
+      // seats change field by field, so a move never overwrites the other person's reaction or notes
+      if (k === 'seats' && before) for (const seat of SEATS){
+        const a = before.seats[seat], b = next.seats[seat];
+        if (same(a, b)) continue;
+        if (!a || !b) patch['seats.' + seat] = b;
+        else for (const f of Object.keys(b)) if (!same(a[f], b[f])) patch[`seats.${seat}.${f}`] = b[f];
+      }
+      else patch[k] = next[k];
+    }
     ref.update(patch).catch(writeFailed);
   }
   function writeFailed(e){
