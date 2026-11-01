@@ -448,7 +448,7 @@ const FIREBASE_CONFIG = {
 };
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 // The own server on Cloudflare (server/). As long as this is empty, Firebase is used.
-const SERVER_URL = '';
+const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1517,7 +1517,9 @@ const SERVER_URL = '';
   // phones saved there. So a new phone, or a deleted app, gets every table back.
   async function backupRooms(code = myCode()){
     if (!code || !net) return null;
-    const rooms = await net.saveCode(code, myRooms());
+    let mine = myRooms();
+    if (moving) try { mine = mergeRooms(mine, await within(codeInFirebase(code), 6000)); } catch(_) {}
+    const rooms = await net.saveCode(code, mine);
     saveRooms(rooms);
     return rooms;
   }
@@ -1530,6 +1532,7 @@ const SERVER_URL = '';
     drawTables(myRooms(), {});
     if (!net || !navigator.onLine) return;
     try { await backupRooms(); } catch(_) {}
+    if (moving) await moveAll();
     const list = myRooms(), info = {};
     await Promise.all(list.map(async x => {
       try { const d = await net.read(x.id); info[x.id] = d ? clean(d) : 'empty'; } catch(_) {}
@@ -1810,6 +1813,29 @@ const SERVER_URL = '';
   };
   const net = server ? cloudNet : FIREBASE_CONFIG.projectId ? fbNet : null;
 
+  // ---------- moving from Firebase to the own server (goes away together with Firebase) ----------
+  // Each phone copies the tables it knows, and the list under its code, from Firebase. The
+  // server keeps such a copy only until the first move there, so this may run on every start.
+  const moving = !!server && !!FIREBASE_CONFIG.projectId;
+  const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
+  const moved = new Set();
+  async function moveTable(id){
+    if (moved.has(id)) return;
+    moved.add(id);
+    try {
+      const data = await within(fbNet.read(id), 6000);
+      if (data) await cloudCall(`/tables/${id}/import`, {data});
+    } catch(e){ moved.delete(id); throw e; }
+  }
+  async function moveAll(){
+    for (const x of myRooms()) try { await moveTable(x.id); } catch(_) {}
+  }
+  async function codeInFirebase(code){
+    const {fs, store} = await firebase();
+    const d = await fs.getDoc(fs.doc(store, 'keys', code));
+    return d.exists() ? mergeRooms(d.data().rooms) : [];
+  }
+
   // ---------- boot ----------
   async function boot(){
     myId = deviceId();
@@ -1830,6 +1856,7 @@ const SERVER_URL = '';
       return startLocal();
     }
     room = roomId();
+    if (moving && navigator.onLine) try { await moveTable(room); } catch(_) {}
     try { ref = await net.table(room); }
     catch(_){
       localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
@@ -1850,6 +1877,7 @@ const SERVER_URL = '';
     );
     subscribe();
     syncPaper();
+    if (moving && navigator.onLine) backupRooms().catch(() => {}).finally(moveAll);
   }
   boot();
 })();

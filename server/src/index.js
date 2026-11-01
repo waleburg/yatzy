@@ -4,13 +4,14 @@
 //
 //   GET  /tables/<room>          WebSocket (live) or the current state as JSON
 //   POST /tables/<room>/results  finished paper games {results: [...]}
+//   POST /tables/<room>/import   a table copied from Firebase {data} (only while moving)
 //   GET  /codes/<code>           the tables saved under a code
 //   POST /codes/<code>           merge a phone's list {rooms: [...]} into it
 //
 // What the server does with the data is in logic.js.
 
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, mergeCode } from './logic.js';
+import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, importTable, mergeCode } from './logic.js';
 
 export default {
   async fetch(request, env){
@@ -21,7 +22,7 @@ export default {
     if (Number(request.headers.get('Content-Length') || 0) > MAX_BYTES) return new Response('Too large', {status: 413, headers: cors});
 
     const {pathname} = new URL(request.url);
-    const t = pathname.match(/^\/tables\/([^/]+)(\/results)?$/);
+    const t = pathname.match(/^\/tables\/([^/]+)(\/results|\/import)?$/);
     const c = pathname.match(/^\/codes\/([^/]+)$/);
     const name = (t || c || [])[1];
     if (!name || !ROOM_RE.test(name)) return new Response('Not found', {status: 404, headers: cors});
@@ -56,6 +57,12 @@ export class Table extends DurableObject {
       if (changed < 0) return json({changed}, 404);
       if (table) await this.save(table);
       return json({changed});
+    }
+    if (request.method === 'POST' && request.url.endsWith('/import')){
+      const body = await request.json().catch(() => null);
+      const table = importTable(this.table, body && body.data);
+      if (table) await this.save(table);
+      return json({imported: !!table});
     }
     return new Response('Not found', {status: 404});
   }
