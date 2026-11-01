@@ -11,10 +11,11 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Yatzy zu zweit</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;600;700&family=Kalam:wght@400;700&display=swap">
 <style>
+/* Fonts live next to the page (fonts/, SIL Open Font License), so nothing is fetched from Google. */
+@font-face{font-family:'Familjen Grotesk';font-weight:400 700;font-display:swap;src:url(fonts/familjen-grotesk.woff2) format('woff2')}
+@font-face{font-family:'Kalam';font-weight:400;font-display:swap;src:url(fonts/kalam-400.woff2) format('woff2')}
+@font-face{font-family:'Kalam';font-weight:700;font-display:swap;src:url(fonts/kalam-700.woff2) format('woff2')}
 /* Layout: phone-first single column. A sticky felt dice tray sits over a printed Yatzy score pad, written in two pen colours. */
 :root{
   --bg:#e6ecef; --fg:#14273f; --muted:#5d6f84;

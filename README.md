@@ -13,6 +13,7 @@ Yatzy für zwei Personen auf zwei Handys, mit skandinavischen Regeln. Die Seite 
 | `firestore.rules` | Die Zugriffsregeln, die du in Firebase einfügst. |
 | `README.md` | Diese Anleitung. |
 | `manifest.webmanifest`, `icon.svg`, `*.png` | Name und Icon für den Home-Bildschirm. |
+| `fonts/` | Die beiden Schriften (Familjen Grotesk, Kalam) mit ihren Lizenzen, damit nichts von Google Fonts geladen wird. |
 
 ## 1. Firebase einrichten (etwa 10 Minuten)
 
