@@ -1,4 +1,4 @@
-// Yatzy zu zweit: the game rules, without any screen or Firebase code.
+// Yatzy zu zweit: the game rules, without any screen or server code.
 // index.html imports this file, and tests/game.test.mjs checks it with `node --test`.
 
 export const CATS = [
@@ -98,7 +98,7 @@ export function nameOf(seat, st){
 
 // ---------- moves ----------
 // Each move changes the state in place and returns false when it isn't allowed,
-// so the same function runs on screen and inside a Firestore transaction.
+// so the same function runs on screen and inside a transaction on the server's state.
 export function rollDice(s, fresh){
   if (s.status !== 'playing' || s.rollsLeft <= 0) return false;
   if (!s.dice) s.held = [false,false,false,false,false];
@@ -268,7 +268,7 @@ export function mergeResults(room, results){
 // Top-level fields of a table that a phone may write.
 export const FIELDS = ['v', 'seats', 'status', 'turn', 'starter', 'dice', 'held',
   'rollsLeft', 'rollId', 'scores', 'last', 'history', 'updatedAt'];
-// Changes single fields of a stored table in place, like a Firestore update: a key such as
+// Changes single fields of a stored table in place: a key such as
 // 'seats.p1.notes' changes a nested field. Phone and server both use it. Returns false (and
 // changes nothing) when a field isn't allowed.
 export function applyPatch(data, patch){

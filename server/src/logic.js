@@ -26,7 +26,7 @@ export function parseMessage(text){
 // Applies a message to a table. Returns {table, reply}: table is the new table (or null
 // if nothing changed), reply goes back to the phone that sent it.
 //   update: changes single fields; a key like 'seats.p1.notes' changes a nested field.
-//           Like Firestore, it fails on a table that doesn't exist yet.
+//           It fails on a table that doesn't exist yet.
 //   set:    replaces the whole state, but only if nobody changed it since the phone saw
 //           revision `base`. Otherwise the phone gets the current state and tries again.
 export function applyMessage(table, m){
@@ -41,7 +41,7 @@ export function applyMessage(table, m){
     if (m.data.v !== 1 || Object.keys(m.data).some(k => !FIELDS.includes(k))) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};
     next = m.data;
   }
-  const out = {rev: table.rev + 1, data: clean(next), seen: [...table.seen, m.id].slice(-SEEN_MAX)};   // no longer `imported`
+  const out = {rev: table.rev + 1, data: clean(next), seen: [...table.seen, m.id].slice(-SEEN_MAX)};
   return {table: out, reply: {t: 'ack', id: m.id, rev: out.rev}};
 }
 
@@ -53,17 +53,7 @@ export function addResults(table, results){
   const merged = mergeResults(table.data, safe);
   if (!merged.changed) return {table: null, changed: 0};
   const data = {...table.data, history: merged.history, updatedAt: new Date().toISOString()};
-  return {table: {...table, rev: table.rev + 1, data, imported: false}, changed: merged.changed};
-}
-
-// Moving from Firebase: a phone hands over a table it read there. It is taken if the table
-// is still empty here, or if it was only copied so far and the copy is newer (the other
-// phone may still have played on Firebase). The first real move here ends the copying.
-export function importTable(table, data){
-  if (!data || typeof data !== 'object' || data.v !== 1) return null;
-  const next = clean(data);
-  if (table.data && !(table.imported && next.updatedAt > table.data.updatedAt)) return null;
-  return {rev: table.rev + 1, data: next, seen: table.seen, imported: true};
+  return {table: {...table, rev: table.rev + 1, data}, changed: merged.changed};
 }
 
 // «Meine Tische» under a personal code: the stored list merged with the one a phone sends.

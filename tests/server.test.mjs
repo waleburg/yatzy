@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { blank } from '../game.js';
-import { emptyTable, parseMessage, applyMessage, addResults, importTable, mergeCode, SEEN_MAX } from '../server/src/logic.js';
+import { emptyTable, parseMessage, applyMessage, addResults, mergeCode, SEEN_MAX } from '../server/src/logic.js';
 
 // A table both phones sit at, stored once.
 function table(){
@@ -88,18 +88,4 @@ test('a personal code keeps the newest of every list', () => {
   const b = [{id: 'raum-aaaa1111', at: 9}, {id: 'nope', at: 3}];
   assert.deepEqual(mergeCode(a, b), [{id: 'raum-aaaa1111', at: 9}, {id: 'raum-bbbb2222', at: 5}]);
   assert.deepEqual(mergeCode([], null), []);
-});
-
-test('a table from Firebase is copied until the first move here', () => {
-  const fb = {...table().data, updatedAt: '2026-11-01T08:00:00.000Z'};
-  const first = importTable(emptyTable(), fb);
-  assert.equal(first.rev, 1);
-  assert.equal(first.data.seats.p1.nick, 'Marcel');
-  assert.equal(importTable(first, fb), null, 'the same copy again changes nothing');
-  const newer = importTable(first, {...fb, turn: 'p2', updatedAt: '2026-11-01T09:00:00.000Z'});
-  assert.equal(newer.data.turn, 'p2', 'the other phone still played on Firebase');
-
-  const moved = send(newer, {t: 'update', id: 'm1', patch: {rollId: 7}}).table;
-  assert.equal(importTable(moved, {...fb, updatedAt: '2026-11-02T00:00:00.000Z'}), null, 'after a move here nothing is overwritten');
-  assert.equal(importTable(emptyTable(), {nonsense: true}), null);
 });

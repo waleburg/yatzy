@@ -442,26 +442,12 @@ details li{margin:3px 0}
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults, mergeRooms, normCode, applyPatch, ROOM_RE
+  boxOptions, markBox, mergeRooms, normCode, applyPatch, ROOM_RE
 } from './game.js?v=5';   // raise the number when game.js changes, so no phone mixes old and new
-// ===================================================================
-//  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
-//  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
-//  Diese Werte sind nicht geheim, sie dürfen öffentlich auf GitHub stehen.
-// ===================================================================
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCmfxYWKbZspAReOav07it8TE25LPmjT0c",
-  authDomain: "yatzy-zu-zweit.firebaseapp.com",
-  projectId: "yatzy-zu-zweit",
-  storageBucket: "yatzy-zu-zweit.firebasestorage.app",
-  messagingSenderId: "1015637093983",
-  appId: "1:1015637093983:web:92c23df4a83a81891c35ea"
-};
-const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
-// The own server on Cloudflare (server/). As long as this is empty, Firebase is used.
+// The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '1 · 01.11.2026';
+const VERSION = '2 · 01.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -497,8 +483,8 @@ const VERSION = '1 · 01.11.2026';
 
   // ---------- writes ----------
   // Moves within your own turn (roll, hold, enter a score) only touch fields the other phone
-  // leaves alone, so they go out as plain field updates: Firestore shows them at once and keeps
-  // them in order, even offline. Actions where both phones could clash (new game, names, seats,
+  // leaves alone, so they go out as plain field updates: they show at once and wait on the phone,
+  // in order, until the server has them, even offline. Actions where both phones could clash (new game, names, seats,
   // undo) run as a transaction on the latest server state and show once the server confirms.
   function applyServer(next){
     const prev = S; S = next;
@@ -544,7 +530,7 @@ const VERSION = '1 · 01.11.2026';
   }
   function writeFailed(e){
     const code = e && e.code;
-    if (!navigator.onLine || code === 'unavailable' || code === 'failed-precondition'){
+    if (!navigator.onLine || code === 'unavailable'){
       toast('Keine Verbindung. Das ging gerade nicht, versuch es gleich nochmals.');
     } else if (code === 'permission-denied'){
       toast('Der Server hat den Zug abgelehnt.');
@@ -1623,9 +1609,7 @@ const VERSION = '1 · 01.11.2026';
   // phones saved there. So a new phone, or a deleted app, gets every table back.
   async function backupRooms(code = myCode()){
     if (!code || !net) return null;
-    let mine = myRooms();
-    if (moving) try { mine = mergeRooms(mine, await within(codeInFirebase(code), 6000)); } catch(_) {}
-    const rooms = await net.saveCode(code, mine);
+    const rooms = await net.saveCode(code, myRooms());
     saveRooms(rooms);
     return rooms;
   }
@@ -1638,7 +1622,6 @@ const VERSION = '1 · 01.11.2026';
     drawTables(myRooms(), {});
     if (!net || !navigator.onLine) return;
     try { await backupRooms(); } catch(_) {}
-    if (moving) await moveAll();
     const list = myRooms(), info = {};
     await Promise.all(list.map(async x => {
       try { const d = await net.read(x.id); info[x.id] = d ? clean(d) : 'empty'; } catch(_) {}
@@ -1724,8 +1707,8 @@ const VERSION = '1 · 01.11.2026';
   $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
   addEventListener('keydown', e => { if (e.key === 'Escape' && tablesOpen) closeTables(); });
 
-  // ---------- the server: our own on Cloudflare (server/), or Firebase until the move ----------
-  // Both give the page the same few calls, so nothing else needs to know which one runs:
+  // ---------- the server: our own on Cloudflare (server/) ----------
+  // The page uses only these few calls:
   //   net.table(room)            the live table: {update(patch), transact(fn), onSnapshot(next)}
   //   net.read(room)             the stored state, or null when there is no such table
   //   net.addResults(room, list) finished paper games; how many changed (-1: no such table)
@@ -1870,81 +1853,7 @@ const VERSION = '1 · 01.11.2026';
     saveCode: async (code, rooms) => (await cloudCall('/codes/' + code, {rooms})).rooms
   };
 
-  // Firebase, loaded once when first needed.
-  let fbLoad = null;
-  function firebase(){
-    if (!fbLoad) fbLoad = Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')])
-      .then(([fb, fs]) => ({fs, store: fs.getFirestore(fb.getApps()[0] || fb.initializeApp(FIREBASE_CONFIG))}))
-      .catch(e => { fbLoad = null; throw e; });
-    return fbLoad;
-  }
-  const fbNet = {
-    async table(room){
-      const {fs, store} = await firebase();
-      const r = fs.doc(store, 'games', room);
-      const wrap = s => ({exists: s.exists(), data: () => s.data(), cached: s.metadata.fromCache});
-      return {
-        update: patch => fs.updateDoc(r, patch),
-        transact: fn => fs.runTransaction(store, async tx => {
-          const cur = await tx.get(r);
-          const next = fn(cur.exists() ? cur.data() : null);
-          if (next) tx.set(r, next);
-          return !!next;
-        }),
-        onSnapshot: (next, err) => fs.onSnapshot(r, {includeMetadataChanges: true}, s => next(wrap(s)), err)
-      };
-    },
-    async read(room){
-      const {fs, store} = await firebase();
-      const d = await fs.getDoc(fs.doc(store, 'games', room));
-      return d.exists() ? d.data() : null;
-    },
-    async addResults(room, results){
-      const {fs, store} = await firebase();
-      const r = fs.doc(store, 'games', room);
-      return fs.runTransaction(store, async tx => {
-        const cur = await tx.get(r);
-        if (!cur.exists()) return -1;
-        const merged = mergeResults(clean(cur.data()), results);
-        if (merged.changed) tx.update(r, {history: merged.history, updatedAt: new Date().toISOString()});
-        return merged.changed;
-      });
-    },
-    async saveCode(code, rooms){
-      const {fs, store} = await firebase();
-      const r = fs.doc(store, 'keys', code);
-      return fs.runTransaction(store, async tx => {
-        const cur = await tx.get(r);
-        const merged = mergeRooms(rooms, cur.exists() ? cur.data().rooms : []);
-        tx.set(r, {v: 1, rooms: merged, updatedAt: new Date().toISOString()});
-        return merged;
-      });
-    }
-  };
-  const net = server ? cloudNet : FIREBASE_CONFIG.projectId ? fbNet : null;
-
-  // ---------- moving from Firebase to the own server (goes away together with Firebase) ----------
-  // Each phone copies the tables it knows, and the list under its code, from Firebase. The
-  // server keeps such a copy only until the first move there, so this may run on every start.
-  const moving = !!server && !!FIREBASE_CONFIG.projectId;
-  const within = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
-  const moved = new Set();
-  async function moveTable(id){
-    if (moved.has(id)) return;
-    moved.add(id);
-    try {
-      const data = await within(fbNet.read(id), 6000);
-      if (data) await cloudCall(`/tables/${id}/import`, {data});
-    } catch(e){ moved.delete(id); throw e; }
-  }
-  async function moveAll(){
-    for (const x of myRooms()) try { await moveTable(x.id); } catch(_) {}
-  }
-  async function codeInFirebase(code){
-    const {fs, store} = await firebase();
-    const d = await fs.getDoc(fs.doc(store, 'keys', code));
-    return d.exists() ? mergeRooms(d.data().rooms) : [];
-  }
+  const net = server ? cloudNet : null;
 
   // ---------- boot ----------
   async function boot(){
@@ -1963,11 +1872,10 @@ const VERSION = '1 · 01.11.2026';
     try { localStorage.setItem('yatzy-view', 'online'); } catch(_) {}
     render();
     if (!net){
-      localReason = 'Die Synchronisation ist noch nicht eingerichtet (Firebase fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
+      localReason = 'Die Synchronisation ist noch nicht eingerichtet (der Server fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
       return startLocal();
     }
     room = roomId();
-    if (moving && navigator.onLine) try { await moveTable(room); } catch(_) {}
     try { ref = await net.table(room); }
     catch(_){
       localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
@@ -1988,7 +1896,6 @@ const VERSION = '1 · 01.11.2026';
     );
     subscribe();
     syncPaper();
-    if (moving && navigator.onLine) backupRooms().catch(() => {}).finally(moveAll);
     clearNotifications();
   }
   boot();
