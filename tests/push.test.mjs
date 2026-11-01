@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { blank } from '../game.js';
 import { subscription, vapidJwt, encrypt, b64u } from '../server/src/push.js';
-import { pushMessages, stillDue } from '../server/src/logic.js';
+import { pushMessages, stillDue, turnKey, daytime, reminderMessage } from '../server/src/logic.js';
 
 const APP = 'https://waleburg.github.io/yatzy/';
 function game(over = {}){
@@ -101,3 +101,27 @@ test('the encrypted body decrypts back to the message (RFC 8291)', async () => {
   assert.equal(plain.at(-1), 2, 'last-record delimiter');
   assert.equal(plain.subarray(0, -1).toString('utf8'), 'Hallo 🥦');
 });
+
+test('a turn stays the same while rolling and changes with every entry', () => {
+  const a = game({turn: 'p1'});
+  assert.equal(turnKey(a), turnKey({...a, dice: [1, 2, 3, 4, 5], rollsLeft: 2}));
+  assert.notEqual(turnKey(a), turnKey(game({turn: 'p2', scores: {p1: {chance: 20}, p2: {}}})));
+  assert.equal(turnKey(game({status: 'over'})), '', 'no reminder for a finished game');
+});
+
+test('reminders wait for the morning in Switzerland', () => {
+  const zurich = t => new Intl.DateTimeFormat('de-CH', {timeZone: 'Europe/Zurich', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(t);
+  const afternoon = Date.parse('2026-11-02T13:00:00Z');                 // 14:00 in Zürich
+  assert.equal(daytime(afternoon), afternoon);
+  const night = daytime(Date.parse('2026-11-02T21:30:00Z'));            // 22:30 in Zürich
+  assert.equal(zurich(night), '08:00');
+  assert.ok(night - Date.parse('2026-11-02T21:30:00Z') < 10 * 3600000);
+});
+
+test('the reminder says who waits and how long', () => {
+  const m = reminderMessage(game({turn: 'p1'}), 'p1', 0, 3 * 3600000, 'raum-test1234', APP);
+  assert.equal(m.title, 'Du bist noch dran 🎲');
+  assert.equal(m.body, '🥦 Brokkoli wartet seit 3 Stunden auf deinen Zug.');
+  assert.equal(m.url, APP + '#raum-test1234');
+});
+

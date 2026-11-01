@@ -11,7 +11,8 @@
 // What the server does with the data is in logic.js, the push sending in push.js.
 
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, mergeCode, pushMessages, stillDue, testMessage } from './logic.js';
+import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, mergeCode, pushMessages, stillDue, testMessage, turnKey, daytime, reminderMessage } from './logic.js';
+import { SEATS } from '../../game.js';
 import { subscription, sendPush } from './push.js';
 
 // A phone counts as "looking at the table" while its app is in front and it pinged lately.
@@ -19,6 +20,9 @@ const AWAY_AFTER = 45000;
 // A notification held back because the app seemed open is checked again after this long. A phone
 // that went to the background without saying so (iOS froze it too fast) has stopped pinging by then.
 const RECHECK_AFTER = 75000;
+// If it has been your turn this long, one gentle reminder (never at night, see daytime).
+// REMIND_MINUTES in the environment shortens it for tests.
+const remindAfter = env => Number(env.REMIND_MINUTES || 180) * 60000;
 
 export default {
   async fetch(request, env){
@@ -65,6 +69,7 @@ export class Table extends DurableObject {
       const id = (new URL(request.url).searchParams.get('id') || '').slice(0, 200);
       server.serializeAttachment({id, visible: true, at: Date.now()});
       server.send(JSON.stringify(this.stateMessage()));
+      this.broadcastHere();
       return new Response(null, {status: 101, webSocket: client});
     }
     if (request.method === 'GET') return json({rev: this.table.rev, data: this.table.data});
@@ -80,8 +85,10 @@ export class Table extends DurableObject {
   }
   async webSocketMessage(ws, text){
     // The app says when it goes to the background and comes back.
+    // While it is in front it repeats 'visible' every 25 s, so the partner's green dot stays on.
     if (text === 'visible' || text === 'hidden'){
       ws.serializeAttachment({...ws.deserializeAttachment(), visible: text === 'visible', at: Date.now()});
+      this.broadcastHere();
       return;
     }
     const m = parseMessage(typeof text === 'string' ? text : '');
@@ -90,7 +97,30 @@ export class Table extends DurableObject {
     const {table, reply} = applyMessage(this.table, m);
     if (table) await this.save(table);
     ws.send(JSON.stringify(reply));
-    if (table) await this.notify(before, table.data);
+    if (!table) return;
+    if (SEATS.some(s => (before && before.seats[s] && before.seats[s].id) !== (table.data.seats[s] && table.data.seats[s].id))) this.broadcastHere();
+    await this.notify(before, table.data);
+    await this.planReminder(before, table.data);
+  }
+
+  // ---------- who has the app open (the green dot) ----------
+  // Per seat: how many milliseconds that stays true without news from the phone.
+  hereLeft(except){
+    const now = Date.now(), left = {p1: 0, p2: 0};
+    for (const ws of this.ctx.getWebSockets()){
+      if (ws === except) continue;
+      const a = ws.deserializeAttachment() || {};
+      if (!a.visible) continue;
+      const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
+      const ms = Math.max(a.at || 0, pinged ? pinged.getTime() : 0) + AWAY_AFTER - now;
+      for (const seat of SEATS)
+        if (this.table.data && this.table.data.seats[seat] && this.table.data.seats[seat].id === a.id) left[seat] = Math.max(left[seat], ms, 0);
+    }
+    return left;
+  }
+  broadcastHere(except){
+    const msg = JSON.stringify({t: 'here', left: this.hereLeft(except)});
+    for (const ws of this.ctx.getWebSockets()) if (ws !== except) try { ws.send(msg); } catch {}
   }
 
   // ---------- push notifications ----------
@@ -127,10 +157,23 @@ export class Table extends DurableObject {
       if (!this.looking(seat)) await this.send(seat, message);
       else if (this.push[seat]) later.push({seat, kind, message, at: Date.now()});
     }
-    if (!later.length) return;
-    const pending = ((await this.ctx.storage.get('later')) || []).filter(p => !later.some(l => l.seat === p.seat && l.kind === p.kind));
-    await this.ctx.storage.put('later', [...pending, ...later]);
-    if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + RECHECK_AFTER);
+    if (later.length) await this.schedule(later.map(l => ({...l, due: l.at + RECHECK_AFTER})), p => later.some(l => l.seat === p.seat && l.kind === p.kind));
+  }
+  // A new turn gets one reminder, the old turn's reminder goes.
+  async planReminder(before, after){
+    const key = turnKey(after);
+    if (key === turnKey(before)) return;
+    const now = Date.now();
+    const add = key && this.push[after.turn] ? [{kind: 'remind', seat: after.turn, key, at: now, due: daytime(now + remindAfter(this.env))}] : [];
+    await this.schedule(add, p => p.kind === 'remind');
+  }
+  // Things to do later (held-back notifications, reminders), all on the table's one alarm.
+  async schedule(add, drop){
+    const all = ((await this.ctx.storage.get('later')) || []).filter(p => !drop(p)).concat(add);
+    await this.ctx.storage.put('later', all);
+    if (!all.length) return;
+    const next = Math.min(...all.map(due)), cur = await this.ctx.storage.getAlarm();
+    if (!cur || cur > next) await this.ctx.storage.setAlarm(next);
   }
   // Was this phone's app still running after `t`? Then it showed the change on screen.
   sawSince(seat, t){
@@ -142,14 +185,16 @@ export class Table extends DurableObject {
     });
   }
   async alarm(){
-    const now = Date.now();
+    const now = Date.now(), st = this.table.data;
     const keep = [];
     for (const p of (await this.ctx.storage.get('later')) || []){
-      if (now < p.at + RECHECK_AFTER - 1000){ keep.push(p); continue; }
-      if (!this.sawSince(p.seat, p.at) && !this.looking(p.seat) && stillDue(p.kind, p.seat, this.table.data)) await this.send(p.seat, p.message);
+      if (now < due(p) - 1000){ keep.push(p); continue; }
+      if (p.kind === 'remind'){
+        if (turnKey(st) === p.key && !this.looking(p.seat)) await this.send(p.seat, reminderMessage(st, p.seat, p.at, now, this.room(), this.env.APP_URL));
+      } else if (!this.sawSince(p.seat, p.at) && !this.looking(p.seat) && stillDue(p.kind, p.seat, st)) await this.send(p.seat, p.message);
     }
     await this.ctx.storage.put('later', keep);
-    if (keep.length) await this.ctx.storage.setAlarm(Math.min(...keep.map(p => p.at)) + RECHECK_AFTER);
+    if (keep.length) await this.ctx.storage.setAlarm(Math.min(...keep.map(due)));
   }
   async send(seat, message){
     const sub = this.push[seat];
@@ -165,7 +210,8 @@ export class Table extends DurableObject {
     } catch (e) { console.log(`push ${this.room()} ${seat} failed: ${e}`); return null; }
   }
   room(){ return this.name; }
-  webSocketClose(ws, code){ try { ws.close(code); } catch {} }
+  webSocketClose(ws, code){ try { ws.close(code); } catch {} this.broadcastHere(ws); }
+  webSocketError(ws){ this.broadcastHere(ws); }
   stateMessage(){ return {t: 'state', rev: this.table.rev, data: this.table.data}; }
   async save(table){
     this.table = table;
@@ -186,6 +232,9 @@ export class Codes extends DurableObject {
     return json({rooms});
   }
 }
+
+// When a planned item is due (items from before reminders only had `at`).
+const due = p => p.due || p.at + RECHECK_AFTER;
 
 function json(body, status = 200){
   return new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}});

@@ -2,7 +2,7 @@
 // tests/server.test.mjs can check it with `node --test`. The rules come from the same
 // game.js the page uses, and every stored state goes through clean(), like a phone reading it.
 
-import { clean, mergeResults, mergeRooms, applyPatch, totals, nameOf, other, CATS, SEATS, REACTIONS, FIELDS, ROOM_RE } from '../../game.js';
+import { clean, mergeResults, mergeRooms, applyPatch, totals, filled, nameOf, other, CATS, SEATS, REACTIONS, FIELDS, ROOM_RE } from '../../game.js';
 
 export { ROOM_RE };
 export const MAX_BYTES = 64000;
@@ -109,5 +109,24 @@ export function stillDue(kind, seat, st){
   if (kind === 'over') return st.status === 'over';
   return true;
 }
+
+// ---------- reminder ----------
+// A turn is known by whose it is and how much is filled in: it stays the same turn while
+// that person rolls, and changes with every entry, a Revanche or a new game.
+export const turnKey = st => st && st.status === 'playing'
+  ? `${st.turn}:${filled(st.scores.p1) + filled(st.scores.p2)}:${st.history.length}` : '';
+// No reminders at night: a time between 22:00 and 08:00 in Switzerland moves to the morning.
+const zurichHour = t => Number(new Intl.DateTimeFormat('en-GB', {timeZone: 'Europe/Zurich', hour: 'numeric', hourCycle: 'h23'}).format(t));
+export function daytime(ms){
+  let t = ms;
+  while (zurichHour(t) >= 22 || zurichHour(t) < 8) t += 15 * 60000;
+  return t;
+}
+export function reminderMessage(st, seat, since, now, room, appUrl){
+  const h = Math.max(1, Math.round((now - since) / 3600000));
+  return {tag: 'yatzy-' + room, url: appUrl + '#' + room, title: 'Du bist noch dran 🎲',
+    body: `${label(st, other(seat))} wartet seit ${h} ${h === 1 ? 'Stunde' : 'Stunden'} auf deinen Zug.`};
+}
+
 export const testMessage = (room, appUrl) =>
   ({tag: 'yatzy-test-' + room, url: appUrl + '#' + room, title: 'Test 👍', body: 'So sehen deine Yatzy-Benachrichtigungen aus.'});

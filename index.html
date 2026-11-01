@@ -89,6 +89,9 @@ button{font:inherit;color:inherit}
 .chip .nm{min-width:0;font-weight:700;font-size:16px;display:flex;align-items:center;gap:7px}
 .chip .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--seat);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+/* the partner has the app open right now */
+.chip .live{width:9px;height:9px;border-radius:50%;flex:none;background:#72e38f;box-shadow:0 0 0 2px rgba(114,227,143,.35);animation:live 2s ease-in-out infinite}
+@keyframes live{50%{box-shadow:0 0 0 5px rgba(114,227,143,0)}}
 .chip.edit{cursor:pointer}
 .chip .pen{margin-left:6px;letter-spacing:0;font-size:12px}
 .chip .you{flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:999px;background:var(--felt-fg);color:var(--felt-deep)}
@@ -111,7 +114,7 @@ button{font:inherit;color:inherit}
 .die.held .tag{visibility:visible}
 .die.rolling{animation:tumble .5s cubic-bezier(.3,.7,.4,1)}
 @keyframes tumble{0%{transform:translateY(-14px) rotate(-30deg) scale(.9)}40%{transform:translateY(3px) rotate(18deg)}70%{transform:translateY(-3px) rotate(-6deg)}100%{transform:none}}
-@media (prefers-reduced-motion: reduce){.die.rolling{animation:none}.die,.chip{transition:none}}
+@media (prefers-reduced-motion: reduce){.die.rolling{animation:none}.die,.chip{transition:none}.chip .live{animation:none}}
 
 .controls{display:flex;align-items:center;gap:10px;margin-top:22px}
 .rolls{display:flex;gap:5px;flex:none}
@@ -446,7 +449,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '5 · 01.11.2026';
+const VERSION = '6 · 01.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -465,6 +468,7 @@ const VERSION = '5 · 01.11.2026';
   let setupVisible = false;
   let setupEmoji = {p1: '', p2: ''};
   let chain = Promise.resolve();
+  let hereUntil = {p1: 0, p2: 0}, hereTimer = null;   // until when each seat counts as "in the app"
 
   const $ = id => document.getElementById(id);
 
@@ -891,6 +895,12 @@ const VERSION = '5 · 01.11.2026';
       const label = document.createElement('span'); label.className = 'label';
       label.textContent = taken ? seatLabel(seat) : '—';
       nm.append(dot, label);
+      if (mode === 'remote' && taken && !isMe(seat) && hereUntil[seat] > Date.now()){
+        const live = document.createElement('span'); live.className = 'live';
+        live.title = `${seatName(seat)} ist gerade in der App`;
+        live.setAttribute('role', 'img'); live.setAttribute('aria-label', live.title);
+        nm.appendChild(live);
+      }
       const tot = document.createElement('span'); tot.className = 'tot';
       tot.textContent = st ? totals(st.scores[seat]).total : 0;
       line.append(nm, tot); c.append(role, line); pl.appendChild(c);
@@ -1762,7 +1772,7 @@ const VERSION = '5 · 01.11.2026';
     const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} };
     let {rev, data} = load(CK, {rev: 0, data: null});
     let queue = load(QK, []);           // moves not confirmed yet, oldest first
-    let ws = null, live = false, listener = null, retry = 0, timer = null, heard = 0, started = false, staleShown = 0;
+    let ws = null, live = false, listener = null, retry = 0, timer = null, heard = 0, started = false, staleShown = 0, onHere = null;
     const waiting = new Map();          // id → callbacks of a promise that waits for the server
     let drainers = [];
 
@@ -1799,6 +1809,7 @@ const VERSION = '5 · 01.11.2026';
     function dropped(){
       ws = null;
       if (live){ live = false; emit(); }
+      if (onHere) onHere({p1: 0, p2: 0});   // without a connection we don't know who is there
       for (const [id, w] of waiting) if (w.tx){ waiting.delete(id); w.tx({code: 'unavailable'}); }
       timer = setTimeout(connect, Math.min(30000, 1000 * 2 ** retry++));
     }
@@ -1821,6 +1832,8 @@ const VERSION = '5 · 01.11.2026';
         if (!live){ live = true; retry = 0; for (const q of queue) send(q); if (document.visibilityState !== 'visible') ws.send('hidden'); }
         emit();
         if (!queue.length) drained();
+      } else if (m.t === 'here' && m.left){
+        if (onHere) onHere(m.left);
       } else if ((m.t === 'ack' || m.t === 'nack') && m.id){
         const i = queue.findIndex(q => q.id === m.id);
         if (i >= 0){ queue.splice(i, 1); keep(QK, queue); }
@@ -1849,7 +1862,13 @@ const VERSION = '5 · 01.11.2026';
       });
     }
 
-    setInterval(() => { if (ws && ws.readyState === 1){ if (Date.now() - heard > 70000) restart(); else ws.send('ping'); } }, 25000);
+    // 'ping' keeps the connection open; 'visible' tells the server the app is still in front.
+    setInterval(() => {
+      if (!ws || ws.readyState !== 1) return;
+      if (Date.now() - heard > 70000) return restart();
+      ws.send('ping');
+      if (live && document.visibilityState === 'visible') ws.send('visible');
+    }, 25000);
     addEventListener('online', check);
     document.addEventListener('visibilitychange', () => {
       if (live && ws && ws.readyState === 1) ws.send(document.visibilityState === 'visible' ? 'visible' : 'hidden');
@@ -1883,7 +1902,9 @@ const VERSION = '5 · 01.11.2026';
         }
         throw {code: 'aborted'};
       },
-      onSnapshot(next){ listener = next; started = true; emit(); connect(); }
+      onSnapshot(next){ listener = next; started = true; emit(); connect(); },
+      // who has the app open: {p1, p2} in milliseconds that stays true without news
+      onPresence(fn){ onHere = fn; }
     });
   }
   // A request to the server, with a time limit so nothing spins forever on a weak signal.
@@ -1932,6 +1953,15 @@ const VERSION = '5 · 01.11.2026';
       localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
       return startLocal();
     }
+    // the green dot: redrawn when news comes and when it runs out
+    ref.onPresence(left => {
+      const now = Date.now();
+      for (const s of SEATS) hereUntil[s] = left[s] > 0 ? now + left[s] : 0;
+      clearTimeout(hereTimer);
+      const next = Math.min(...SEATS.map(s => hereUntil[s]).filter(Boolean));
+      if (Number.isFinite(next)) hereTimer = setTimeout(render, next - now + 50);
+      render();
+    });
     mode = 'remote';
     render();
     const subscribe = () => ref.onSnapshot(
