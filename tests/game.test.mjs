@@ -138,7 +138,8 @@ test('the last entry of a game ends it, records history and can be undone', () =
   enterScore(s, 'p2', 'yatzy', '2026-10-30T20:00:00.000Z');
   assert.equal(s.status, 'over');
   assert.equal(s.history.length, 1);
-  assert.deepEqual(s.history[0], {at: '2026-10-30T20:00:00.000Z', p1: 15, p2: 64, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1});
+  assert.deepEqual(s.history[0], {at: '2026-10-30T20:00:00.000Z', p1: 15, p2: 64, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1,
+    s1: Array(15).fill(1), s2: [...Array(14).fill(1), 50]}, 'with both score sheets, box by box');
 
   assert.equal(undoAllowed(s, 'p2'), true);
   undoEntry(s, 'p2');
@@ -253,6 +254,41 @@ test('stats count wins, draws, Yatzys and the current streak', () => {
   assert.deepEqual(computeStats([]).avg, {p1: 0, p2: 0});
 });
 
+test('more statistics: lowest score, longest streak, biggest win, wins per month', () => {
+  const h = (at, p1, p2) => ({at, p1, p2, n1: '', n2: '', y1: 0, y2: 0});
+  const st = computeStats([h('2026-10-05T18:00:00Z', 200, 150), h('2026-10-06T18:00:00Z', 210, 180),
+    h('2026-10-07T18:00:00Z', 190, 250), h('2026-11-01T18:00:00Z', 230, 160)]);
+  assert.equal(st.per.p1.low, 190);
+  assert.equal(st.per.p2.low, 150);
+  assert.equal(st.per.p1.longest, 2);
+  assert.equal(st.per.p2.longest, 1);
+  assert.equal(st.per.p1.margin, 70);
+  assert.equal(st.per.p2.margin, 60);
+  assert.deepEqual(st.months, [{month: '2026-11', p1: 1, p2: 0, draws: 0}, {month: '2026-10', p1: 2, p2: 1, draws: 0}]);
+});
+
+test('box statistics come from games that kept their score sheet', () => {
+  const a = [3, 6, 9, 12, 15, 18, 12, 16, 15, 20, 15, 20, 25, 24, 0];   // upper 63: bonus, one box scratched
+  const b = [2, 4, 6, 8, 10, 12, 10, 14, 12, 16, 0, 0, 19, 20, 50];     // upper 42, two scratched
+  const g = {at: '2026-11-01T18:00:00Z', p1: 260, p2: 183, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1, s1: a, s2: b};
+  const old = {at: '2026-10-01T18:00:00Z', p1: 200, p2: 210, n1: '', n2: '', y1: 0, y2: 0};
+  const st = computeStats([old, g]);
+  assert.equal(st.sheets, 1);
+  assert.equal(st.per.p1.bonus, 1);
+  assert.equal(st.per.p2.bonus, 0);
+  assert.equal(st.per.p1.zeros, 1);
+  assert.equal(st.per.p2.zeros, 2);
+  assert.equal(st.bestBox.p1.k, 'large', 'Marcel is 20 points ahead there');
+  assert.equal(st.bestBox.p2.k, 'yatzy');
+  assert.deepEqual(computeStats([old]).bestBox, {p1: null, p2: null});
+
+  assert.deepEqual(clean({history: [g]}).history[0].s2, b, 'the sheets survive the sync');
+  assert.equal(clean({history: [{...g, s1: [1, 2]}]}).history[0].s1, undefined, 'a broken sheet is dropped');
+  const room = clean({seats: {p1: {id: 'a', nick: 'Marcel'}, p2: {id: 'b', nick: 'Brokkoli'}}});
+  const merged = mergeResults(room, [{...g, n1: 'Brokkoli', n2: 'Marcel', s1: b, s2: a}]).history[0];
+  assert.deepEqual([merged.s1, merged.s2], [a, b], 'a paper game with swapped seats swaps its sheets too');
+});
+
 // A paper-sheet game: same seats, but nobody rolls on screen.
 function paperGame(){ const s = game({dice: null, rollsLeft: 3}); s.held = [false, false, false, false, false]; return s; }
 
@@ -289,7 +325,8 @@ test('a full paper sheet ends the game, and a correction keeps its time', () => 
   fillAllBut(s.scores.p2, 'yatzy');
   markBox(s, 'p2', 'yatzy', 50, '2026-10-31T20:00:00.000Z');
   assert.equal(s.status, 'over');
-  assert.deepEqual(s.history, [{at: '2026-10-31T20:00:00.000Z', p1: 15, p2: 64, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1}]);
+  assert.deepEqual(s.history, [{at: '2026-10-31T20:00:00.000Z', p1: 15, p2: 64, n1: 'Marcel', n2: 'Brokkoli', y1: 0, y2: 1,
+    s1: Array(15).fill(1), s2: [...Array(14).fill(1), 50]}]);
 
   markBox(s, 'p1', 'chance', 20, '2026-10-31T21:00:00.000Z');
   assert.equal(s.status, 'over', 'changing a value finishes the game again');

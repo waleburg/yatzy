@@ -9,6 +9,8 @@ export const CATS = [
   {k:'house',n:'Full House'},{k:'chance',n:'Chance'},{k:'yatzy',n:'Yatzy',hint:'50'}
 ];
 export const KEYS = CATS.map(c => c.k);
+// The most each box can hold.
+export const BOX_MAX = {ones:5,twos:10,threes:15,fours:20,fives:25,sixes:30,pair:12,twopair:22,three:18,four:24,small:15,large:20,house:28,chance:30,yatzy:50};
 export const SEATS = ['p1','p2'];
 export const EMOJIS = ['🥦','💚'];
 export const REACTIONS = [['😂','Lachen'], ['😍','Verliebt'], ['😘','Kuss'], ['🙄','Genervt'], ['😡','Wütend'], ['😱','Schockiert'], ['👏','Applaus']];
@@ -85,8 +87,15 @@ export function clean(raw){
     if (Array.isArray(u.dice) && u.dice.length === 5 && u.dice.every(d => int(d,1,6)) && Array.isArray(u.held) && u.held.length === 5 && int(u.rollsLeft,0,2))
       Object.assign(s.last, {dice: u.dice.slice(), held: u.held.map(Boolean), rollsLeft: u.rollsLeft, over: !!u.over});
   }
+  // a score sheet: 15 boxes in KEYS order, each 0–50 or null (games from before 1.11.2026 have none)
+  const sheet = a => Array.isArray(a) && a.length === KEYS.length && a.every(x => x === null || int(x,0,50)) ? a.slice() : null;
   if (Array.isArray(raw.history)) s.history = raw.history.filter(h => h && int(h.p1,0,500) && int(h.p2,0,500)).slice(-HISTORY_MAX)
-    .map(h => ({at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,15) ? h.y1 : 0, y2: int(h.y2,0,15) ? h.y2 : 0}));
+    .map(h => {
+      const e = {at: str(h.at, 40), p1: h.p1, p2: h.p2, n1: str(h.n1, 16), n2: str(h.n2, 16), y1: int(h.y1,0,15) ? h.y1 : 0, y2: int(h.y2,0,15) ? h.y2 : 0};
+      const s1 = sheet(h.s1), s2 = sheet(h.s2);
+      if (s1 && s2) Object.assign(e, {s1, s2});
+      return e;
+    });
   if (typeof raw.updatedAt === 'string') s.updatedAt = raw.updatedAt.slice(0,40);
   return s;
 }
@@ -131,9 +140,10 @@ function finishIfFull(s, at){
   if (filled(s.scores.p1) < 15 || filled(s.scores.p2) < 15) return false;
   const y = seat => Math.max(s.seats[seat] && s.seats[seat].yz || 0, s.scores[seat].yatzy === 50 ? 1 : 0);
   s.status = 'over';
+  const sheet = seat => KEYS.map(k => s.scores[seat][k] ?? null);
   s.history = s.history.concat({
     at, p1: totals(s.scores.p1).total, p2: totals(s.scores.p2).total,
-    n1: nameOf('p1', s), n2: nameOf('p2', s), y1: y('p1'), y2: y('p2')
+    n1: nameOf('p1', s), n2: nameOf('p2', s), y1: y('p1'), y2: y('p2'), s1: sheet('p1'), s2: sheet('p2')
   }).slice(-HISTORY_MAX);
   return true;
 }
@@ -256,6 +266,7 @@ export function mergeResults(room, results){
   for (const h of results){
     const swap = !!(norm(h.n1) && norm(h.n1) === nick('p2')) || !!(norm(h.n2) && norm(h.n2) === nick('p1'));
     const e = swap ? {at: h.at, p1: h.p2, p2: h.p1, n1: h.n2, n2: h.n1, y1: h.y2, y2: h.y1} : {...h};
+    if (swap && h.s1 && h.s2) Object.assign(e, {s1: h.s2, s2: h.s1});
     const i = history.findIndex(x => x.at === e.at);
     if (i < 0){ history.push(e); changed++; }
     else if (JSON.stringify(history[i]) !== JSON.stringify(e)){ history[i] = e; changed++; }
@@ -309,17 +320,55 @@ export function loveTeam(st, sender){
   const mine = st && st.seats[sender], theirs = st && st.seats[other(sender)];
   return !!mine && !!theirs && mine.emoji === '💚' && (theirs.emoji === '🥦' || (theirs.nick || '').includes('🥦'));
 }
+// Statistics over the finished games. The box figures (bonus, scratched boxes, best box)
+// only count games that kept their score sheet.
 export function computeStats(history){
-  const per = {p1: {wins: 0, best: 0, sum: 0, y: 0}, p2: {wins: 0, best: 0, sum: 0, y: 0}};
-  let draws = 0, streak = {seat: null, n: 0};
-  for (const h of history){
-    for (const seat of SEATS){ per[seat].best = Math.max(per[seat].best, h[seat]); per[seat].sum += h[seat]; }
+  const fresh = () => ({wins: 0, best: 0, low: 0, sum: 0, y: 0, run: 0, longest: 0, margin: 0, bonus: 0, zeros: 0, box: KEYS.map(() => 0)});
+  const per = {p1: fresh(), p2: fresh()};
+  let draws = 0, streak = {seat: null, n: 0}, sheets = 0;
+  const months = new Map();
+  history.forEach((h, i) => {
+    for (const seat of SEATS){
+      const v = per[seat];
+      v.best = Math.max(v.best, h[seat]); v.low = i ? Math.min(v.low, h[seat]) : h[seat]; v.sum += h[seat];
+    }
     per.p1.y += h.y1; per.p2.y += h.y2;
     const w = h.p1 === h.p2 ? null : h.p1 > h.p2 ? 'p1' : 'p2';
-    if (!w){ draws++; streak = {seat: null, n: 0}; continue; }
-    per[w].wins++;
+    const d = new Date(h.at);
+    if (!isNaN(d)){
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = months.get(key) || {month: key, p1: 0, p2: 0, draws: 0};
+      m[w || 'draws']++;
+      months.set(key, m);
+    }
+    if (h.s1 && h.s2){
+      sheets++;
+      for (const [seat, sh] of [['p1', h.s1], ['p2', h.s2]]){
+        if (sh.slice(0, 6).reduce((a, x) => a + (x || 0), 0) >= 63) per[seat].bonus++;
+        per[seat].zeros += sh.filter(x => x === 0).length;
+        sh.forEach((x, k) => { per[seat].box[k] += x || 0; });
+      }
+    }
+    if (!w){ draws++; streak = {seat: null, n: 0}; per.p1.run = per.p2.run = 0; return; }
+    const v = per[w];
+    v.wins++; v.run++; per[other(w)].run = 0;
+    v.longest = Math.max(v.longest, v.run);
+    v.margin = Math.max(v.margin, Math.abs(h.p1 - h.p2));
     streak = streak.seat === w ? {seat: w, n: streak.n + 1} : {seat: w, n: 1};
-  }
+  });
   const avg = seat => history.length ? Math.round(per[seat].sum / history.length) : 0;
-  return {games: history.length, per, avg: {p1: avg('p1'), p2: avg('p2')}, draws, streak};
+  // each one's best box: where they are furthest ahead of the other on average
+  const bestBox = seat => {
+    let best = null;
+    KEYS.forEach((k, i) => {
+      const lead = (per[seat].box[i] - per[other(seat)].box[i]) / (sheets || 1);
+      if (lead > 0 && (!best || lead > best.lead)) best = {k, lead};
+    });
+    return best;
+  };
+  return {
+    games: history.length, per, avg: {p1: avg('p1'), p2: avg('p2')}, draws, streak,
+    months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)),   // newest first
+    sheets, bestBox: {p1: bestBox('p1'), p2: bestBox('p2')}
+  };
 }
