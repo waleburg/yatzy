@@ -2,12 +2,9 @@
 // tests/server.test.mjs can check it with `node --test`. The rules come from the same
 // game.js the page uses, and every stored state goes through clean(), like a phone reading it.
 
-import { clean, mergeResults, mergeRooms, ROOM_RE } from '../../game.js';
+import { clean, mergeResults, mergeRooms, applyPatch, FIELDS, ROOM_RE } from '../../game.js';
 
 export { ROOM_RE };
-// Top-level fields a phone may write (the same list firestore.rules allowed).
-export const FIELDS = ['v', 'seats', 'status', 'turn', 'starter', 'dice', 'held',
-  'rollsLeft', 'rollId', 'scores', 'last', 'history', 'updatedAt'];
 export const MAX_BYTES = 64000;
 // Ids of the last moves, so a move a phone sends again after a lost connection counts once.
 export const SEEN_MAX = 100;
@@ -38,13 +35,7 @@ export function applyMessage(table, m){
   if (m.t === 'update'){
     if (!table.data) return {table: null, reply: {t: 'nack', id: m.id, why: 'not-found'}};
     next = structuredClone(table.data);
-    for (const [key, val] of Object.entries(m.patch)){
-      const path = key.split('.');
-      if (!FIELDS.includes(path[0]) || path.some(p => !p || p === '__proto__')) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};
-      let o = next;
-      for (const p of path.slice(0, -1)){ if (!o[p] || typeof o[p] !== 'object') o[p] = {}; o = o[p]; }
-      o[path[path.length - 1]] = val;
-    }
+    if (!applyPatch(next, m.patch)) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};
   } else {
     if (m.base !== table.rev) return {table: null, reply: {t: 'nack', id: m.id, why: 'conflict', rev: table.rev, data: table.data}};
     if (m.data.v !== 1 || Object.keys(m.data).some(k => !FIELDS.includes(k))) return {table: null, reply: {t: 'nack', id: m.id, why: 'bad-field'}};

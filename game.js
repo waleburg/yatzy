@@ -252,6 +252,24 @@ export function mergeResults(room, results){
   return {history: history.slice(-HISTORY_MAX), changed};
 }
 
+// ---------- the server ----------
+// Top-level fields of a table that a phone may write.
+export const FIELDS = ['v', 'seats', 'status', 'turn', 'starter', 'dice', 'held',
+  'rollsLeft', 'rollId', 'scores', 'last', 'history', 'updatedAt'];
+// Changes single fields of a stored table in place, like a Firestore update: a key such as
+// 'seats.p1.notes' changes a nested field. Phone and server both use it. Returns false (and
+// changes nothing) when a field isn't allowed.
+export function applyPatch(data, patch){
+  const paths = Object.keys(patch).map(k => k.split('.'));
+  if (paths.some(path => !FIELDS.includes(path[0]) || path.some(p => !p || p === '__proto__' || p === 'constructor' || p === 'prototype'))) return false;
+  for (const path of paths){
+    let o = data;
+    for (const p of path.slice(0, -1)){ if (!o[p] || typeof o[p] !== 'object') o[p] = {}; o = o[p]; }
+    o[path[path.length - 1]] = patch[path.join('.')];
+  }
+  return true;
+}
+
 // ---------- my tables ----------
 // The tables a phone has opened: [{id, at}], newest first. Lists from several phones
 // (or from the backup under a personal code) merge into one.

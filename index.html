@@ -431,8 +431,8 @@ details li{margin:3px 0}
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults, mergeRooms, normCode, ROOM_RE
-} from './game.js?v=3';   // raise the number when game.js changes, so no phone mixes old and new
+  boxOptions, markBox, mergeResults, mergeRooms, normCode, applyPatch, ROOM_RE
+} from './game.js?v=4';   // raise the number when game.js changes, so no phone mixes old and new
 // ===================================================================
 //  Firebase-Konfiguration: Werte aus der Firebase-Konsole einfügen
 //  (Projekteinstellungen > Deine Apps > Web-App > SDK-Konfiguration).
@@ -447,6 +447,8 @@ const FIREBASE_CONFIG = {
   appId: "1:1015637093983:web:92c23df4a83a81891c35ea"
 };
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+// The own server on Cloudflare (server/). As long as this is empty, Firebase is used.
+const SERVER_URL = '';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -521,7 +523,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!navigator.onLine || code === 'unavailable' || code === 'failed-precondition'){
       toast('Keine Verbindung. Das ging gerade nicht, versuch es gleich nochmals.');
     } else if (code === 'permission-denied'){
-      toast('Der Server hat den Zug abgelehnt. Prüfe die Firestore-Regeln (siehe README).');
+      toast('Der Server hat den Zug abgelehnt.');
     } else {
       toast('Der Zug wurde nicht gespeichert. Prüfe deine Verbindung und versuche es nochmals.');
     }
@@ -766,7 +768,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   // sent again only if it was corrected afterwards.
   let syncing = false;
   async function syncPaper(){
-    if (syncing || !navigator.onLine || !FIREBASE_CONFIG.projectId) return;
+    if (syncing || !navigator.onLine || !net) return;
     const read = k => { try { return localStorage.getItem(k); } catch(_) { return null; } };
     const room = read('yatzy-room');
     let sent = {};
@@ -777,15 +779,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     if (!ROOM_RE.test(room || '') || !todo.length) return;
     syncing = true;
     try {
-      const {fs, store} = await firebase();
-      const r = fs.doc(store, 'games', room);
-      const changed = await fs.runTransaction(store, async tx => {
-        const cur = await tx.get(r);
-        if (!cur.exists()) return -1;
-        const merged = mergeResults(clean(cur.data()), todo);
-        if (merged.changed) tx.update(r, {history: merged.history, updatedAt: new Date().toISOString()});
-        return merged.changed;
-      });
+      const changed = await net.addResults(room, todo);
       if (changed < 0) return;
       for (const h of todo) sent[h.at] = JSON.stringify(h);
       try { localStorage.setItem('yatzy-paper-sent', JSON.stringify(sent)); } catch(_) {}
@@ -1102,7 +1096,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       : '';
     $('viewBtn').hidden = mode === 'connecting';
     $('viewBtn').textContent = !paper ? '🎲 Mit echten Würfeln spielen'
-      : FIREBASE_CONFIG.projectId ? '📱 Zurück zum Online-Spiel' : '🎲 Zurück zu den Würfeln auf dem Handy';
+      : net ? '📱 Zurück zum Online-Spiel' : '🎲 Zurück zu den Würfeln auf dem Handy';
     const showShare = mode === 'remote' && !!me && !!st && st.status === 'waiting';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
@@ -1508,18 +1502,11 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     saveRooms(mergeRooms(myRooms(), [{id, at: Date.now()}]));
     backupRooms().catch(() => {});
   }
-  // With a personal code the list is also kept in Firebase (keys/<code>), merged with
-  // what other phones saved there. So a new phone, or a deleted app, gets every table back.
+  // With a personal code the list is also kept on the server, merged with what other
+  // phones saved there. So a new phone, or a deleted app, gets every table back.
   async function backupRooms(code = myCode()){
-    if (!code || !FIREBASE_CONFIG.projectId) return null;
-    const {fs, store} = await firebase();
-    const r = fs.doc(store, 'keys', code);
-    const rooms = await fs.runTransaction(store, async tx => {
-      const cur = await tx.get(r);
-      const merged = mergeRooms(myRooms(), cur.exists() ? cur.data().rooms : []);
-      tx.set(r, {v: 1, rooms: merged, updatedAt: new Date().toISOString()});
-      return merged;
-    });
+    if (!code || !net) return null;
+    const rooms = await net.saveCode(code, myRooms());
     saveRooms(rooms);
     return rooms;
   }
@@ -1530,15 +1517,12 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     $('tablesSheet').hidden = false;
     renderKey();
     drawTables(myRooms(), {});
-    if (!FIREBASE_CONFIG.projectId || !navigator.onLine) return;
+    if (!net || !navigator.onLine) return;
     try { await backupRooms(); } catch(_) {}
     const list = myRooms(), info = {};
-    try {
-      const {fs, store} = await firebase();
-      await Promise.all(list.map(async x => {
-        try { const d = await fs.getDoc(fs.doc(store, 'games', x.id)); info[x.id] = d.exists() ? clean(d.data()) : 'empty'; } catch(_) {}
-      }));
-    } catch(_) {}
+    await Promise.all(list.map(async x => {
+      try { const d = await net.read(x.id); info[x.id] = d ? clean(d) : 'empty'; } catch(_) {}
+    }));
     if (tablesOpen) drawTables(list, info);
   }
   function closeTables(){ tablesOpen = false; $('tablesSheet').hidden = true; }
@@ -1589,8 +1573,8 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   }
   function renderKey(){
     const code = myCode();
-    $('keyForm').hidden = !FIREBASE_CONFIG.projectId;
-    $('keyText').textContent = !FIREBASE_CONFIG.projectId ? ''
+    $('keyForm').hidden = !net;
+    $('keyText').textContent = !net ? ''
       : code ? `Gesichert unter dem Code «${code}» (${myRooms().length} ${myRooms().length === 1 ? 'Tisch' : 'Tische'}). Auf einem anderen Handy, oder wenn die App gelöscht wurde, gibst du hier genau diesen Code ein. Dann sind alle Tische wieder da.`
       : 'Lege einen persönlichen Code fest, zum Beispiel ein Wort mit Zahlen (mindestens 8 Zeichen), das niemand errät. Mit demselben Code holst du deine Tische auf jedem Handy zurück, auch wenn die App gelöscht wurde.';
     $('keyInput').value = '';
@@ -1611,8 +1595,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       toast(`Gesichert unter «${code}»: ${rooms.length} ${rooms.length === 1 ? 'Tisch' : 'Tische'}` + (added > 0 ? `, ${added} davon neu von einem anderen Handy.` : '.'));
       openTables();
     } catch(err){
-      toast(err && err.code === 'permission-denied' ? 'Firebase erlaubt das noch nicht. Zuerst müssen die Regeln aktualisiert werden (siehe README).'
-        : `Das ging nicht (${(err && (err.code || err.message)) || 'unbekannter Fehler'}). Prüfe die Verbindung und versuche es nochmals.`);
+      toast(`Das ging nicht (${(err && (err.code || err.message)) || 'unbekannter Fehler'}). Prüfe die Verbindung und versuche es nochmals.`);
     } finally { $('keyBtn').disabled = false; }
   });
   secretGesture(document.querySelector('.pad h2'), openTables);
@@ -1621,7 +1604,149 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
   addEventListener('keydown', e => { if (e.key === 'Escape' && tablesOpen) closeTables(); });
 
-  // ---------- Firebase, loaded once when first needed ----------
+  // ---------- the server: our own on Cloudflare (server/), or Firebase until the move ----------
+  // Both give the page the same few calls, so nothing else needs to know which one runs:
+  //   net.table(room)            the live table: {update(patch), transact(fn), onSnapshot(next)}
+  //   net.read(room)             the stored state, or null when there is no such table
+  //   net.addResults(room, list) finished paper games; how many changed (-1: no such table)
+  //   net.saveCode(code, rooms)  «Meine Tische» under a personal code; the merged list
+  const server = SERVER_URL || devServer();
+  // On this computer a local server can be tried without changing SERVER_URL:
+  // localStorage.setItem('yatzy-dev-server', 'http://localhost:8787')
+  function devServer(){
+    if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return '';
+    try { return localStorage.getItem('yatzy-dev-server') || ''; } catch(_) { return ''; }
+  }
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+  // Cloudflare: one WebSocket per table. Moves wait on the phone (also across a restart of
+  // the app) until the server confirms them, and the last state is kept, so the table shows
+  // at once and you can go on playing without a connection. The server knows every move by
+  // its id, so a move sent twice after a lost connection counts once.
+  function cloudTable(room){
+    const QK = 'yatzy-queue:' + room, CK = 'yatzy-table:' + room;
+    const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch(_) { return d; } };
+    const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} };
+    let {rev, data} = load(CK, {rev: 0, data: null});
+    let queue = load(QK, []);           // moves not confirmed yet, oldest first
+    let ws = null, live = false, listener = null, retry = 0, timer = null, heard = 0, started = false;
+    const waiting = new Map();          // id → callbacks of a promise that waits for the server
+    let drainers = [];
+
+    // What the page sees: the server's state with the moves still on their way on top.
+    function emit(){
+      if (!listener) return;
+      let view = data && clean(data);
+      for (const m of queue) if (view){ const v = structuredClone(view); if (applyPatch(v, m.patch)) view = clean(v); }
+      listener({exists: !!view, data: () => view, cached: !live});
+    }
+    const send = m => { if (live && ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
+    function connect(){
+      clearTimeout(timer);
+      if (ws) return;
+      const sock = ws = new WebSocket(server.replace(/^http/, 'ws') + '/tables/' + room);
+      sock.onmessage = e => {
+        heard = Date.now();
+        if (e.data === 'pong') return;
+        let m;
+        try { m = JSON.parse(e.data); } catch(_) { return; }
+        received(m);
+      };
+      sock.onclose = () => { if (ws === sock) dropped(); };
+    }
+    function dropped(){
+      ws = null;
+      if (live){ live = false; emit(); }
+      for (const [id, w] of waiting) if (w.tx){ waiting.delete(id); w.tx({code: 'unavailable'}); }
+      timer = setTimeout(connect, Math.min(30000, 1000 * 2 ** retry++));
+    }
+    // A connection can die unnoticed (phone asleep, app in the background): start a new one.
+    function restart(){
+      if (ws){ const old = ws; old.onclose = old.onmessage = null; try { old.close(); } catch(_) {} }
+      retry = 0; dropped(); clearTimeout(timer); connect();
+    }
+    function check(){
+      if (!started || !navigator.onLine) return;
+      if (!ws) return restart();
+      if (ws.readyState !== 1) return;
+      const asked = Date.now();
+      ws.send('ping');
+      setTimeout(() => { if (heard < asked && ws && ws.readyState === 1) restart(); }, 4000);
+    }
+    function received(m){
+      if (m.t === 'state'){
+        rev = m.rev; data = m.data; keep(CK, {rev, data});
+        if (!live){ live = true; retry = 0; for (const q of queue) send(q); }
+        emit();
+        if (!queue.length) drained();
+      } else if ((m.t === 'ack' || m.t === 'nack') && m.id){
+        const i = queue.findIndex(q => q.id === m.id);
+        if (i >= 0){ queue.splice(i, 1); keep(QK, queue); }
+        const w = waiting.get(m.id);
+        waiting.delete(m.id);
+        if (w) w.done(m);
+        if (m.t === 'nack' && i >= 0) emit();   // a refused move disappears from the screen
+        if (!queue.length) drained();
+      }
+    }
+    function drained(){ const d = drainers; drainers = []; d.forEach(f => f()); }
+    // Waits until the server has every move of this phone, so a transaction builds on them.
+    function drain(){
+      if (!queue.length) return Promise.resolve();
+      return new Promise((ok, fail) => { drainers.push(ok); setTimeout(() => fail({code: 'unavailable'}), 10000); });
+    }
+    function ask(m){
+      return new Promise((done, tx) => {
+        waiting.set(m.id, {done, tx});
+        send(m);
+        setTimeout(() => { if (waiting.delete(m.id)) tx({code: 'unavailable'}); }, 10000);
+      });
+    }
+
+    setInterval(() => { if (ws && ws.readyState === 1){ if (Date.now() - heard > 70000) restart(); else ws.send('ping'); } }, 25000);
+    addEventListener('online', check);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+
+    return Promise.resolve({
+      // A plain move: shows at once, waits on the phone until the server has it.
+      update(patch){
+        const m = {t: 'update', id: newId(), patch};
+        queue.push(m); keep(QK, queue);
+        emit(); send(m);
+        return new Promise((ok, fail) => waiting.set(m.id, {done: r => r.t === 'ack' ? ok() : fail({code: r.why === 'not-found' ? 'not-found' : 'permission-denied'})}));
+      },
+      // Runs fn on the newest state and stores the result, unless the other phone changed
+      // the table in between: then fn runs again on the new state. Needs a connection.
+      async transact(fn){
+        if (!live) throw {code: 'unavailable'};
+        await drain();
+        for (let tries = 0; tries < 5; tries++){
+          if (!live) throw {code: 'unavailable'};
+          const next = fn(data ? structuredClone(data) : null);
+          if (!next) return false;
+          const r = await ask({t: 'set', id: newId(), base: rev, data: next});
+          if (r.t === 'ack') return true;
+          if (r.why !== 'conflict') throw {code: 'permission-denied'};
+          rev = r.rev; data = r.data;
+        }
+        throw {code: 'aborted'};
+      },
+      onSnapshot(next){ listener = next; started = true; emit(); connect(); }
+    });
+  }
+  async function cloudCall(path, body){
+    const res = await fetch(server + path, body ? {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)} : {});
+    if (!res.ok && res.status !== 404) throw {code: 'unavailable'};
+    return res.json();
+  }
+  const cloudNet = {
+    table: cloudTable,
+    read: async room => (await cloudCall('/tables/' + room)).data,
+    addResults: async (room, results) => (await cloudCall(`/tables/${room}/results`, {results})).changed,
+    saveCode: async (code, rooms) => (await cloudCall('/codes/' + code, {rooms})).rooms
+  };
+
+  // Firebase, loaded once when first needed.
   let fbLoad = null;
   function firebase(){
     if (!fbLoad) fbLoad = Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-firestore.js')])
@@ -1629,6 +1754,50 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       .catch(e => { fbLoad = null; throw e; });
     return fbLoad;
   }
+  const fbNet = {
+    async table(room){
+      const {fs, store} = await firebase();
+      const r = fs.doc(store, 'games', room);
+      const wrap = s => ({exists: s.exists(), data: () => s.data(), cached: s.metadata.fromCache});
+      return {
+        update: patch => fs.updateDoc(r, patch),
+        transact: fn => fs.runTransaction(store, async tx => {
+          const cur = await tx.get(r);
+          const next = fn(cur.exists() ? cur.data() : null);
+          if (next) tx.set(r, next);
+          return !!next;
+        }),
+        onSnapshot: (next, err) => fs.onSnapshot(r, {includeMetadataChanges: true}, s => next(wrap(s)), err)
+      };
+    },
+    async read(room){
+      const {fs, store} = await firebase();
+      const d = await fs.getDoc(fs.doc(store, 'games', room));
+      return d.exists() ? d.data() : null;
+    },
+    async addResults(room, results){
+      const {fs, store} = await firebase();
+      const r = fs.doc(store, 'games', room);
+      return fs.runTransaction(store, async tx => {
+        const cur = await tx.get(r);
+        if (!cur.exists()) return -1;
+        const merged = mergeResults(clean(cur.data()), results);
+        if (merged.changed) tx.update(r, {history: merged.history, updatedAt: new Date().toISOString()});
+        return merged.changed;
+      });
+    },
+    async saveCode(code, rooms){
+      const {fs, store} = await firebase();
+      const r = fs.doc(store, 'keys', code);
+      return fs.runTransaction(store, async tx => {
+        const cur = await tx.get(r);
+        const merged = mergeRooms(rooms, cur.exists() ? cur.data().rooms : []);
+        tx.set(r, {v: 1, rooms: merged, updatedAt: new Date().toISOString()});
+        return merged;
+      });
+    }
+  };
+  const net = server ? cloudNet : FIREBASE_CONFIG.projectId ? fbNet : null;
 
   // ---------- boot ----------
   async function boot(){
@@ -1645,30 +1814,16 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     }
     try { localStorage.setItem('yatzy-view', 'online'); } catch(_) {}
     render();
-    if (!FIREBASE_CONFIG.projectId){
+    if (!net){
       localReason = 'Die Synchronisation ist noch nicht eingerichtet (Firebase fehlt, siehe README). Bis dahin spielt ihr auf diesem Handy und gebt es nach jedem Zug weiter.';
       return startLocal();
     }
-    let fs, store;
-    try { ({fs, store} = await firebase()); }
+    room = roomId();
+    try { ref = await net.table(room); }
     catch(_){
       localReason = 'Der Server ist gerade nicht erreichbar. Lade die Seite später neu, um auf zwei Handys zu spielen.';
       return startLocal();
     }
-    room = roomId();
-    const r = fs.doc(store, 'games', room);
-    const wrap = s => ({exists: s.exists(), data: () => s.data(), cached: s.metadata.fromCache});
-    ref = {
-      set: data => fs.setDoc(r, data),
-      update: patch => fs.updateDoc(r, patch),
-      transact: fn => fs.runTransaction(store, async tx => {
-        const cur = await tx.get(r);
-        const next = fn(cur.exists() ? cur.data() : null);
-        if (next) tx.set(r, next);
-        return !!next;
-      }),
-      onSnapshot: (next, err) => fs.onSnapshot(r, {includeMetadataChanges: true}, s => next(wrap(s)), err)
-    };
     mode = 'remote';
     render();
     const subscribe = () => ref.onSnapshot(
@@ -1678,7 +1833,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
         if (snap.exists && !snap.cached && !remembered){ remembered = true; rememberRoom(room); }
       },
       err => {
-        if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu. Prüfe die Firestore-Regeln (siehe README).');
+        if (err && err.code === 'permission-denied') toast('Der Server lässt keinen Zugriff zu.');
         else { toast('Die Verbindung ist unterbrochen. Ich versuche es gleich nochmals.'); setTimeout(subscribe, 4000); }
       }
     );
