@@ -398,7 +398,7 @@ details li{margin:3px 0}
     <div class="keybox">
       <p class="note" id="keyText"></p>
       <form id="keyForm">
-        <input id="keyInput" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="z. B. brokkoli-2207" aria-label="Persönlicher Code">
+        <input id="keyInput" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="z. B. brokkoli-2207" aria-label="Persönlicher Code">
         <button class="lnk" type="submit" id="keyBtn">Sichern</button>
       </form>
     </div>
@@ -1569,7 +1569,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
     const code = myCode();
     $('keyForm').hidden = !FIREBASE_CONFIG.projectId;
     $('keyText').textContent = !FIREBASE_CONFIG.projectId ? ''
-      : code ? `Gesichert unter dem Code «${code}». Auf einem anderen Handy, oder wenn die App gelöscht wurde, gibst du hier denselben Code ein. Dann sind alle Tische wieder da.`
+      : code ? `Gesichert unter dem Code «${code}» (${myRooms().length} ${myRooms().length === 1 ? 'Tisch' : 'Tische'}). Auf einem anderen Handy, oder wenn die App gelöscht wurde, gibst du hier genau diesen Code ein. Dann sind alle Tische wieder da.`
       : 'Lege einen persönlichen Code fest, zum Beispiel ein Wort mit Zahlen (mindestens 8 Zeichen), das niemand errät. Mit demselben Code holst du deine Tische auf jedem Handy zurück, auch wenn die App gelöscht wurde.';
     $('keyInput').value = '';
     $('keyInput').placeholder = code ? 'Anderen Code eingeben' : 'z. B. brokkoli-2207';
@@ -1586,10 +1586,11 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
       const rooms = await backupRooms(code);
       try { localStorage.setItem('yatzy-key', code); } catch(_) {}
       const added = rooms.length - before;
-      toast(added > 0 ? `Gesichert. ${added === 1 ? 'Ein Tisch von einem anderen Handy ist' : added + ' Tische von anderen Handys sind'} dazugekommen.` : 'Gesichert. Deine Tische sind jetzt unter diesem Code gespeichert.');
+      toast(`Gesichert unter «${code}»: ${rooms.length} ${rooms.length === 1 ? 'Tisch' : 'Tische'}` + (added > 0 ? `, ${added} davon neu von einem anderen Handy.` : '.'));
       openTables();
     } catch(err){
-      toast(err && err.code === 'permission-denied' ? 'Firebase erlaubt das noch nicht. Zuerst müssen die Regeln aktualisiert werden (siehe README).' : 'Das ging nicht. Prüfe die Verbindung und versuche es nochmals.');
+      toast(err && err.code === 'permission-denied' ? 'Firebase erlaubt das noch nicht. Zuerst müssen die Regeln aktualisiert werden (siehe README).'
+        : `Das ging nicht (${(err && (err.code || err.message)) || 'unbekannter Fehler'}). Prüfe die Verbindung und versuche es nochmals.`);
     } finally { $('keyBtn').disabled = false; }
   });
   secretGesture(document.querySelector('.pad h2'), openTables);
