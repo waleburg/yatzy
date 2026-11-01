@@ -4,6 +4,11 @@ compatibility_date = "2025-09-01"
 
 [vars]
 ALLOWED_ORIGINS = "https://waleburg.github.io,http://localhost:8771,http://127.0.0.1:8771"
+APP_URL = "https://waleburg.github.io/yatzy/"
+VAPID_SUBJECT = "https://waleburg.github.io/yatzy/"
+VAPID_PUBLIC = "BLAs6Z2ir3bzWRdOeiB-F01dXsjpXeZ0Fc-9zhaW8If8WNLMNKI6Uz4w491wOL0UphYGYbNz30R5Kv0555joxAI"
+# The private push key is a secret, not in this file:
+#   npx wrangler secret put VAPID_PRIVATE_JWK < ../worker/.secrets/vapid-private.jwk.json
 
 [[durable_objects.bindings]]
 name = "TABLES"

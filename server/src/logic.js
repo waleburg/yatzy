@@ -2,7 +2,7 @@
 // tests/server.test.mjs can check it with `node --test`. The rules come from the same
 // game.js the page uses, and every stored state goes through clean(), like a phone reading it.
 
-import { clean, mergeResults, mergeRooms, applyPatch, FIELDS, ROOM_RE } from '../../game.js';
+import { clean, mergeResults, mergeRooms, applyPatch, totals, nameOf, other, CATS, SEATS, FIELDS, ROOM_RE } from '../../game.js';
 
 export { ROOM_RE };
 export const MAX_BYTES = 64000;
@@ -68,3 +68,38 @@ export function importTable(table, data){
 
 // «Meine Tische» under a personal code: the stored list merged with the one a phone sends.
 export const mergeCode = (stored, sent) => mergeRooms(stored, sent);
+
+// ---------- push notifications ----------
+// What to tell whom after a change: the person whose turn it now is, both when a game ends,
+// and both when someone asks for a Revanche (the one who asked has the app open, and the
+// caller skips phones that are looking at the table).
+const label = (st, seat) => (st.seats[seat] && st.seats[seat].emoji ? st.seats[seat].emoji + ' ' : '') + nameOf(seat, st);
+export function pushMessages(prev, next, room, appUrl){
+  if (!next) return [];
+  const base = {tag: 'yatzy-' + room, url: appUrl + '#' + room};
+  const out = [];
+  for (const seat of SEATS){
+    if (!next.seats[seat]) continue;
+    const o = other(seat);
+    const wasMine = prev && prev.status === 'playing' && prev.turn === seat;
+    if (prev && prev.status === 'over' && next.status === 'playing'){
+      const body = next.turn === seat ? `${label(next, o)} will eine Revanche. Du beginnst.` : `${label(next, o)} will eine Revanche und beginnt.`;
+      out.push({seat, message: {...base, title: 'Revanche! 🎲', body}});
+    } else if (next.status === 'playing' && next.turn === seat && !wasMine){
+      const L = next.last, cat = L && CATS.find(c => c.k === L.cat);
+      const body = L && L.seat === o && cat ? `${label(next, o)} hat ${L.pts} bei ${cat.n} eingetragen.`
+        : prev && prev.status !== 'playing' ? `${label(next, o)} ist am Tisch. Das Spiel beginnt mit dir.`
+        : `${label(next, o)} wartet auf dich.`;
+      out.push({seat, message: {...base, title: 'Du bist dran 🎲', body}});
+    }
+    if (next.status === 'over' && (!prev || prev.status !== 'over')){
+      const a = totals(next.scores.p1).total, b = totals(next.scores.p2).total;
+      const body = a === b ? `Unentschieden, beide haben ${a} Punkte.`
+        : `${label(next, a > b ? 'p1' : 'p2')} gewinnt ${Math.max(a, b)} zu ${Math.min(a, b)}.`;
+      out.push({seat, message: {...base, title: 'Spiel vorbei 🏆', body}});
+    }
+  }
+  return out;
+}
+export const testMessage = (room, appUrl) =>
+  ({tag: 'yatzy-test-' + room, url: appUrl + '#' + room, title: 'Test 👍', body: 'So sehen deine Yatzy-Benachrichtigungen aus.'});

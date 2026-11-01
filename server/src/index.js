@@ -5,13 +5,18 @@
 //   GET  /tables/<room>          WebSocket (live) or the current state as JSON
 //   POST /tables/<room>/results  finished paper games {results: [...]}
 //   POST /tables/<room>/import   a table copied from Firebase {data} (only while moving)
+//   POST /tables/<room>/push     notifications for a seat {seat, id, sub|null, test}
 //   GET  /codes/<code>           the tables saved under a code
 //   POST /codes/<code>           merge a phone's list {rooms: [...]} into it
 //
-// What the server does with the data is in logic.js.
+// What the server does with the data is in logic.js, the push sending in push.js.
 
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, importTable, mergeCode } from './logic.js';
+import { ROOM_RE, MAX_BYTES, emptyTable, parseMessage, applyMessage, addResults, importTable, mergeCode, pushMessages, testMessage } from './logic.js';
+import { subscription, sendPush } from './push.js';
+
+// A phone counts as "looking at the table" while its app is in front and it pinged lately.
+const AWAY_AFTER = 45000;
 
 export default {
   async fetch(request, env){
@@ -22,7 +27,7 @@ export default {
     if (Number(request.headers.get('Content-Length') || 0) > MAX_BYTES) return new Response('Too large', {status: 413, headers: cors});
 
     const {pathname} = new URL(request.url);
-    const t = pathname.match(/^\/tables\/([^/]+)(\/results|\/import)?$/);
+    const t = pathname.match(/^\/tables\/([^/]+)(\/results|\/import|\/push)?$/);
     const c = pathname.match(/^\/codes\/([^/]+)$/);
     const name = (t || c || [])[1];
     if (!name || !ROOM_RE.test(name)) return new Response('Not found', {status: 404, headers: cors});
@@ -41,12 +46,22 @@ export class Table extends DurableObject {
     super(ctx, env);
     // Phones send 'ping' to keep the connection open; answered without waking the table.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
-    ctx.blockConcurrencyWhile(async () => { this.table = (await ctx.storage.get('table')) || emptyTable(); });
+    ctx.blockConcurrencyWhile(async () => {
+      this.table = (await ctx.storage.get('table')) || emptyTable();
+      this.push = (await ctx.storage.get('push')) || {};   // seat → push address, never in the game data
+      this.name = (await ctx.storage.get('name')) || '';   // the room, for the link in a notification
+    });
   }
   async fetch(request){
+    if (!this.name){
+      this.name = new URL(request.url).pathname.split('/')[2] || '';
+      await this.ctx.storage.put('name', this.name);
+    }
     if (request.headers.get('Upgrade') === 'websocket'){
       const [client, server] = Object.values(new WebSocketPair());
       this.ctx.acceptWebSocket(server);
+      const id = (new URL(request.url).searchParams.get('id') || '').slice(0, 200);
+      server.serializeAttachment({id, visible: true, at: Date.now()});
       server.send(JSON.stringify(this.stateMessage()));
       return new Response(null, {status: 101, webSocket: client});
     }
@@ -58,6 +73,7 @@ export class Table extends DurableObject {
       if (table) await this.save(table);
       return json({changed});
     }
+    if (request.method === 'POST' && request.url.endsWith('/push')) return json(await this.setPush(await request.json().catch(() => null)));
     if (request.method === 'POST' && request.url.endsWith('/import')){
       const body = await request.json().catch(() => null);
       const table = importTable(this.table, body && body.data);
@@ -67,12 +83,63 @@ export class Table extends DurableObject {
     return new Response('Not found', {status: 404});
   }
   async webSocketMessage(ws, text){
+    // The app says when it goes to the background and comes back.
+    if (text === 'visible' || text === 'hidden'){
+      ws.serializeAttachment({...ws.deserializeAttachment(), visible: text === 'visible', at: Date.now()});
+      return;
+    }
     const m = parseMessage(typeof text === 'string' ? text : '');
     if (!m) return ws.send(JSON.stringify({t: 'nack', why: 'bad-message'}));
+    const before = this.table.data;
     const {table, reply} = applyMessage(this.table, m);
     if (table) await this.save(table);
     ws.send(JSON.stringify(reply));
+    if (table) await this.notify(before, table.data);
   }
+
+  // ---------- push notifications ----------
+  // Only the phone sitting on a seat may switch its notifications on or off.
+  async setPush(body){
+    const {seat, id, sub, test} = body || {};
+    const v = this.table.data && this.table.data.seats[seat];
+    if (!v || typeof id !== 'string' || v.id !== id) return {ok: false, why: 'not-your-seat'};
+    if (sub === null){
+      delete this.push[seat];
+      await this.ctx.storage.put('push', this.push);
+      return {ok: true};
+    }
+    const s = subscription(sub);
+    if (!s) return {ok: false, why: 'bad-subscription'};
+    this.push[seat] = s;
+    await this.ctx.storage.put('push', this.push);
+    if (!test) return {ok: true};
+    const res = await this.send(seat, testMessage(this.room(), this.env.APP_URL));
+    return {ok: !!res && res.ok, status: res && res.status};
+  }
+  looking(seat){
+    const id = this.table.data && this.table.data.seats[seat] && this.table.data.seats[seat].id;
+    const now = Date.now();
+    return this.ctx.getWebSockets().some(ws => {
+      const a = ws.deserializeAttachment() || {};
+      const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws);
+      return a.id === id && a.visible && now - Math.max(a.at || 0, pinged ? pinged.getTime() : 0) < AWAY_AFTER;
+    });
+  }
+  async notify(before, after){
+    for (const {seat, message} of pushMessages(before, after, this.room(), this.env.APP_URL))
+      if (!this.looking(seat)) await this.send(seat, message);
+  }
+  async send(seat, message){
+    const sub = this.push[seat];
+    if (!sub || !this.env.VAPID_PRIVATE_JWK) return null;
+    try {
+      const res = await sendPush(this.env, sub, message);
+      // the phone dropped this address (app deleted, notifications switched off)
+      if (res.status === 404 || res.status === 410){ delete this.push[seat]; await this.ctx.storage.put('push', this.push); }
+      return res;
+    } catch { return null; }
+  }
+  room(){ return this.name; }
   webSocketClose(ws, code){ try { ws.close(code); } catch {} }
   stateMessage(){ return {t: 'state', rev: this.table.rev, data: this.table.data}; }
   async save(table){
