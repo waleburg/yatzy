@@ -446,11 +446,12 @@ import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
   boxOptions, markBox, mergeRooms, normCode, applyPatch, BOX_MAX, ROOM_RE
-} from './game.js?v=6';   // raise the number when game.js changes, so no phone mixes old and new
+} from './game.js?r=8';   // raise the number when game.js changes, so no phone mixes old and new
+                          // (r, not v: service workers up to version 7 answer an unknown ?v= with an old copy)
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '7 · 01.11.2026';
+const VERSION = '8 · 01.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};

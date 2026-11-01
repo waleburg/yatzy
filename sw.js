@@ -2,7 +2,7 @@
 // connection (the paper sheet then works fully offline), and it shows the push notifications
 // the server sends. The server's live data itself is never cached.
 
-const CACHE = 'yatzy-v5';
+const CACHE = 'yatzy-v6';
 const SHELL = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
   'fonts/familjen-grotesk.woff2', 'fonts/kalam-400.woff2', 'fonts/kalam-700.woff2'];
 // How long the page waits for the network before it starts from the saved copy.
@@ -24,9 +24,9 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;
   // The page: the newest one, unless the network takes longer than PATIENCE (weak signal).
   if (req.mode === 'navigate') return e.respondWith(fresh(e, req.url, 'index.html'));
-  // Fonts, icons and the rules file with its version number (game.js?v=…) don't change
+  // Fonts, icons and the rules file with its version number (game.js?r=…) don't change
   // under the same address: straight from the phone, refreshed in the background.
-  if (/\/(fonts\/|icon|apple-touch|manifest)/.test(url.pathname) || (url.pathname.endsWith('/game.js') && url.searchParams.has('v')))
+  if (/\/(fonts\/|icon|apple-touch|manifest)/.test(url.pathname) || (url.pathname.endsWith('/game.js') && url.searchParams.has('r')))
     return e.respondWith(stored(e, req));
   e.respondWith(fresh(e, req, req));
 });
@@ -41,14 +41,15 @@ function fresh(e, req, key){
   const late = new Promise(ok => setTimeout(ok, PATIENCE)).then(() => saved(key)).then(hit => hit || net);
   return Promise.race([net, late]).catch(() => saved(key).then(hit => hit || Response.error()));
 }
-// The saved copy at once, and a fresh one for next time.
+// The saved copy of exactly this address at once, and a fresh one for next time. A new
+// address (a new rules version) comes from the network; only offline any older copy.
 function stored(e, req){
   const net = fetch(req).then(async res => {
     if (res.ok) await (await caches.open(CACHE)).put(req, res.clone());
     return res;
   });
   e.waitUntil(net.catch(() => {}));
-  return saved(req).then(hit => hit || net);
+  return caches.match(req).then(hit => hit || net.catch(() => saved(req).then(old => old || Response.error())));
 }
 // Exactly this file if it was saved; only then any saved version of it (better than nothing).
 function saved(key){
