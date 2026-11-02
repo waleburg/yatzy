@@ -365,6 +365,10 @@ details li{margin:3px 0}
       <button class="btn" type="submit">Spiel starten</button>
       <p class="setup-note" id="setupNote"></p>
     </form>
+    <div class="share" id="appHint" hidden>
+      <p>Hast du Yatzy auf dem Home-Bildschirm? Links öffnen sich immer hier in Safari. Kopiere den Link und öffne ihn in der App über «☰ Menü › Tisch per Link öffnen».</p>
+      <div class="share-row"><button class="btn" type="button" id="appHintCopy">Link kopieren</button><button class="btn ghost" type="button" id="appHintClose">Ausblenden</button></div>
+    </div>
     <div class="join" id="join" hidden>
       <p id="joinText">Zwei Plätze am Tisch. Nimm einen, um zu beginnen.</p>
       <form id="joinForm">
@@ -433,6 +437,17 @@ details li{margin:3px 0}
       <ul class="tables" id="tablesList"></ul>
       <div class="menu-list">
         <button class="mi" type="button" id="tablesNew"><span class="ic" aria-hidden="true">＋</span><span class="grow">Neuer Tisch</span></button>
+        <details id="linkBox">
+          <summary class="mi"><span class="ic" aria-hidden="true">🔗</span><span class="grow">Tisch per Link öffnen<small>Einen Link aus einer Nachricht einsetzen</small></span><span class="chev" aria-hidden="true">›</span></summary>
+          <div class="keybox">
+            <form id="linkForm" novalidate>
+              <input id="linkInput" type="text" inputmode="url" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="…/yatzy/#raum-…" aria-label="Link zum Tisch">
+              <button class="lnk" type="submit">Öffnen</button>
+            </form>
+            <div class="row"><button class="lnk" type="button" id="linkPaste">Aus der Zwischenablage einsetzen</button></div>
+            <p class="note" id="linkErr" hidden></p>
+          </div>
+        </details>
         <details id="keyBox">
           <summary class="mi"><span class="ic" aria-hidden="true">🔑</span><span class="grow">Persönlicher Code<small id="keySum"></small></span><span class="chev" aria-hidden="true">›</span></summary>
           <div class="keybox">
@@ -497,13 +512,13 @@ details li{margin:3px 0}
 import {
   CATS, KEYS, SEATS, EMOJIS, REACTIONS, SAYINGS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
-  boxOptions, markBox, mergeRooms, normCode, applyPatch, BOX_MAX, ROOM_RE
-} from './game.js?r=9';   // raise the number when game.js changes, so no phone mixes old and new
+  boxOptions, markBox, mergeRooms, normCode, applyPatch, roomFromLink, BOX_MAX, ROOM_RE
+} from './game.js?r=10';   // raise the number when game.js changes, so no phone mixes old and new
                           // (r, not v: service workers up to version 7 answer an unknown ?v= with an old copy)
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '12 · 02.11.2026';
+const VERSION = '13 · 02.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1170,6 +1185,8 @@ const VERSION = '12 · 02.11.2026';
     keepAwake();
     $('padNote').textContent = st && st.status === 'playing' ? `Runde ${Math.min(15, Math.min(filled(st.scores.p1), filled(st.scores.p2)) + 1)} von 15` : '';
 
+    // In Safari on an iPhone a table link may belong in the home-screen app: say how to get it there.
+    $('appHint').hidden = !(isIOS && !standalone && mode === 'remote' && !loadJSON('yatzy-apphint-off', false));
     // under the score pad only a note when this phone plays on its own; everything else is in the menu
     $('modeNote').textContent = mode === 'local' ? localReason : '';
     const showShare = mode === 'remote' && !!me && !!st && st.status === 'waiting';
@@ -1868,6 +1885,31 @@ const VERSION = '12 · 02.11.2026';
   $('menuBtn').addEventListener('click', openMenu);
   $('menuClose').addEventListener('click', closeMenu);
   $('menuSheet').addEventListener('click', e => { if (e.target === $('menuSheet')) closeMenu(); });
+  // A link from a message opens in Safari, not in the home-screen app (which keeps its own
+  // tables): copy it there, then set it in here.
+  function openLinkText(text){
+    const id = roomFromLink(text);
+    if (!id){
+      $('linkErr').textContent = 'Das ist kein Tisch-Link. Er sieht so aus: …/yatzy/#raum-…';
+      $('linkErr').hidden = false;
+      return;
+    }
+    $('linkErr').hidden = true;
+    saveRooms(mergeRooms(myRooms(), [{id, at: Date.now()}]));
+    goTo(id);
+  }
+  $('linkForm').addEventListener('submit', e => { e.preventDefault(); openLinkText($('linkInput').value); });
+  $('linkInput').addEventListener('input', () => { $('linkErr').hidden = true; });
+  $('linkPaste').hidden = !(navigator.clipboard && navigator.clipboard.readText);
+  $('linkPaste').addEventListener('click', async () => {
+    try { const t = await navigator.clipboard.readText(); $('linkInput').value = t; openLinkText(t); }
+    catch(_) { $('linkInput').focus(); toast('Tippe ins Feld und wähle «Einsetzen».'); }
+  });
+  $('appHintCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.href); toast('Link kopiert. Öffne jetzt Yatzy auf dem Home-Bildschirm: ☰ Menü › Tisch per Link öffnen.'); }
+    catch(_) { toast('Kopieren ging nicht. Halte die Adresszeile gedrückt und kopiere den Link dort.'); }
+  });
+  $('appHintClose').addEventListener('click', () => { saveJSON('yatzy-apphint-off', true); render(); });
   $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
   addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) closeMenu(); });
 

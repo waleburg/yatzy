@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   KEYS, score, totals, blank, clean, rollDice, toggleHeld, enterScore,
   undoAllowed, undoEntry, newRound, beginGame, loveTeam, computeStats,
-  boxOptions, markBox, mergeResults, mergeRooms, normCode, takeSeat, editSeat
+  boxOptions, markBox, mergeResults, mergeRooms, normCode, takeSeat, editSeat, roomFromLink
 } from '../game.js';
 
 // A game in progress: both seats taken, p1's turn, dice already rolled once.
@@ -387,3 +387,14 @@ test('a personal code is cleaned up and must be long enough', () => {
   assert.equal(normCode(''), null);
   assert.equal(normCode('x'.repeat(41)), null);
 });
+
+test('a table is found in a pasted link', () => {
+  assert.equal(roomFromLink('https://waleburg.github.io/yatzy/#raum-k3x9q2mf'), 'raum-k3x9q2mf');
+  assert.equal(roomFromLink('  Spielst du mit? https://waleburg.github.io/yatzy/#RAUM-K3X9Q2MF  '), 'raum-k3x9q2mf', 'with text before it');
+  assert.equal(roomFromLink('https://waleburg.github.io/yatzy/#raum-k3x9q2mf Bis gleich!'), 'raum-k3x9q2mf', 'with text after it');
+  assert.equal(roomFromLink('raum-k3x9q2mf'), 'raum-k3x9q2mf', 'just the address');
+  assert.equal(roomFromLink('https://waleburg.github.io/yatzy/#papier'), null, 'the paper sheet is no table');
+  assert.equal(roomFromLink('https://example.com/'), null);
+  assert.equal(roomFromLink(''), null);
+});
+

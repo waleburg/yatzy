@@ -309,6 +309,13 @@ export function mergeRooms(...lists){
   }
   return [...best].map(([id, at]) => ({id, at})).sort((a, b) => b.at - a.at).slice(0, ROOMS_MAX);
 }
+// The table in a link someone sent (…/yatzy/#raum-k3x9q2mf), or just the address itself.
+export function roomFromLink(text){
+  const t = String(text || '').trim();
+  const i = t.lastIndexOf('#');
+  const id = ((i >= 0 ? t.slice(i + 1) : t).match(/^[a-z0-9-]+/i) || [''])[0].toLowerCase();
+  return ROOM_RE.test(id) ? id : null;
+}
 // A personal code as people type it ("Brokkoli 2207") turned into a safe address (brokkoli-2207).
 export function normCode(t){
   const c = String(t || '').trim().toLowerCase()
