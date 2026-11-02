@@ -72,18 +72,11 @@ button{font:inherit;color:inherit}
 .brand svg{width:22px;height:22px;flex:none}
 .series{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--felt-muted);font-variant-numeric:tabular-nums;text-align:right}
 .top-right{display:flex;align-items:center;gap:10px;min-width:0}
-.sound{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 11px;border-radius:999px;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:var(--felt-fg);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.sound svg{width:16px;height:16px;flex:none}
-.sound .mute{display:none}
-.sound[aria-pressed="false"]{color:var(--felt-muted);border-color:rgba(255,255,255,.15)}
-.sound[aria-pressed="false"] .wave{display:none}
-.sound[aria-pressed="false"] .mute{display:inline}
 .series{white-space:nowrap}
-/* narrow phones with «Tische» shown: the sound button keeps only its speaker (the label stays for screen readers) */
-@media (max-width: 430px){
-  .top:has(#tablesBtn:not([hidden])) #soundBtn{padding:0 9px}
-  .top:has(#tablesBtn:not([hidden])) #soundLabel{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-}
+.menu-btn{position:relative;display:flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border-radius:999px;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:var(--felt-fg);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.menu-btn svg{width:16px;height:16px;flex:none}
+/* something waits for you in the menu (notifications not decided yet) */
+.menu-dot{position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:#ff6b5e;box-shadow:0 0 0 2px var(--felt)}
 .players{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .chip{--seat:var(--on-felt1);display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 10px 9px;border-radius:12px;background:rgba(255,255,255,.06);border:2px solid transparent;transition:opacity .2s, border-color .2s, background .2s}
 .chip.s2{--seat:var(--on-felt2)}
@@ -267,7 +260,35 @@ td.cell.tap{cursor:pointer}
 .sheet .emo[aria-pressed="true"]{border-color:var(--gold);background:rgba(227,167,47,.2)}
 #seatForm{display:flex;flex-direction:column;gap:10px}
 #seatName{min-height:48px;border-radius:10px;border:1.5px solid var(--seat);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;padding:0 12px}
-.keybox{margin-top:16px;padding-top:12px;border-top:1px solid var(--grid)}
+.keybox{padding:0 12px 12px}
+/* the menu: one sheet with everything you can do or set, in three groups */
+.menu-head{display:flex;align-items:center;justify-content:space-between}
+.menu-head strong{font-size:20px;color:var(--print)}
+.menu-head .lnk{min-height:36px}
+.menu-sec{margin-top:16px}
+.menu-sec h3{margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.menu-sec .tables{margin-bottom:8px}
+.menu-list{display:flex;flex-direction:column;border:1.5px solid var(--grid);border-radius:12px;overflow:hidden;background:var(--paper)}
+.menu-list > * + *{border-top:1px solid var(--grid)}
+.menu-list details{border:none;border-radius:0;background:transparent;padding:0}
+.menu-list details > :not(summary){margin-left:12px;margin-right:12px}
+.mi{width:100%;display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 12px;border:none;background:transparent;color:var(--fg);font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer;list-style:none}
+.mi::-webkit-details-marker{display:none}
+.mi[hidden]{display:none}
+.mi .ic{width:22px;flex:none;text-align:center;font-size:16px}
+.mi .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mi small{font-size:12.5px;font-weight:500;color:var(--muted);text-wrap:pretty}
+.mi .chev{color:var(--muted);font-size:18px;transition:transform .15s}
+details[open] > .mi .chev{transform:rotate(90deg)}
+.mi.danger{color:var(--ink2)}
+.switch{flex:none;width:46px;height:28px;border-radius:999px;border:none;background:#b9c3cf;position:relative;cursor:pointer;padding:0;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.switch[aria-checked="true"]{background:#2fa36b}
+.switch[aria-checked="true"]::after{left:21px}
+.switch:disabled{opacity:.5;cursor:default}
+.inline-lnk{align-self:flex-start;border:none;background:none;padding:2px 0 0;color:var(--print);font:inherit;font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
+.menu-sec .confirm{margin-top:8px}
+#verNote{text-align:center;margin:16px 0 0}
 .keybox p{margin:0 0 8px}
 .keybox form{display:flex;gap:8px}
 .keybox input{flex:1;min-width:0;min-height:44px;border-radius:10px;border:1.5px solid var(--grid-strong);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;padding:0 10px}
@@ -313,13 +334,9 @@ details li{margin:3px 0}
       <div class="top-right">
         <span class="net" id="netBadge" hidden>Offline</span>
         <div class="series" id="series"></div>
-        <button class="sound" id="tablesBtn" type="button" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>
-          <span>Tische</span>
-        </button>
-        <button class="sound" id="soundBtn" type="button" aria-pressed="true" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><g class="wave"><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></g><g class="mute"><path d="M16 9l5 6M21 9l-5 6"/></g></svg>
-          <span id="soundLabel">Ton an</span>
+        <button class="menu-btn" id="menuBtn" type="button" aria-haspopup="dialog" aria-controls="menuSheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <span>Menü</span><i class="menu-dot" id="menuDot" hidden></i>
         </button>
       </div>
     </div>
@@ -375,50 +392,11 @@ details li{margin:3px 0}
   </section>
 
   <div class="foot">
-    <div class="row" id="footActions">
-      <button class="lnk" type="button" id="newGameBtn">Neues Spiel</button>
-      <button class="lnk danger" type="button" id="clearBtn">Plätze freigeben</button>
-      <button class="lnk" type="button" id="footShare" hidden>Link teilen</button>
-    </div>
-    <div class="confirm" id="confirm" hidden>
-      <span id="confirmText"></span>
-      <button class="lnk" type="button" id="confirmNo">Weiterspielen</button>
-      <button class="lnk danger" type="button" id="confirmYes">Ja</button>
-    </div>
-    <div class="row"><button class="lnk" type="button" id="viewBtn"></button></div>
-    <details id="pushBox" hidden>
-      <summary id="pushSum">🔔 Benachrichtigungen</summary>
-      <p class="note" id="pushText"></p>
-      <div class="row">
-        <button class="lnk" type="button" id="pushOn" hidden>Einschalten</button>
-        <button class="lnk" type="button" id="pushTest" hidden>Test</button>
-        <button class="lnk" type="button" id="pushOff" hidden>Ausschalten</button>
-      </div>
-    </details>
     <details id="statsBox" hidden>
       <summary>Statistik</summary>
       <div id="stats"></div>
     </details>
-    <details id="notesBox" hidden>
-      <summary>💌 Eigene Liebesbotschaften</summary>
-      <p class="note" id="notesIntro"></p>
-      <textarea id="notesText" rows="7" maxlength="4500" aria-label="Eigene Liebesbotschaften, eine pro Zeile"></textarea>
-      <div class="row"><button class="lnk" type="button" id="notesSave">Speichern</button></div>
-    </details>
-    <details>
-      <summary>Spielregeln</summary>
-      <ul>
-        <li>Pro Zug hast du drei Würfe. Tippe Würfel an, um sie zwischen den Würfen zu halten.</li>
-        <li>Einer bis Sechser: die Summe dieser Augenzahl. Mit 63 oder mehr Punkten im oberen Teil gibt es 50 Bonuspunkte.</li>
-        <li>Ein Paar, Zwei Paare, Dreier- und Viererpasch: die Summe dieser Würfel. Die zwei Paare müssen verschiedene Zahlen sein.</li>
-        <li>Kleine Strasse 1-2-3-4-5 gibt 15 Punkte, grosse Strasse 2-3-4-5-6 gibt 20.</li>
-        <li>Full House: drei gleiche und zwei andere gleiche Würfel. Gezählt wird die Summe aller Würfel.</li>
-        <li>Chance: die Summe aller Würfel. Yatzy, fünf gleiche Würfel: 50.</li>
-        <li>Passt nichts, musst du in einem Feld deiner Wahl eine 0 eintragen.</li>
-      </ul>
-    </details>
     <p class="note" id="modeNote"></p>
-    <p class="note" id="verNote"></p>
   </div>
 </div>
 <div class="sheet" id="picker" hidden>
@@ -431,21 +409,70 @@ details li{margin:3px 0}
     </div>
   </div>
 </div>
-<div class="sheet" id="tablesSheet" hidden>
-  <div class="sheet-card tall" role="dialog" aria-modal="true" aria-labelledby="tablesTitle">
-    <div class="sheet-head"><strong id="tablesTitle">Meine Tische</strong><span id="tablesSub">Alle Tische, die dieses Handy geöffnet hat. Antippen zum Öffnen.</span></div>
-    <ul class="tables" id="tablesList"></ul>
-    <div class="keybox">
-      <p class="note" id="keyText"></p>
-      <form id="keyForm">
-        <input id="keyInput" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="z. B. brokkoli-2207" aria-label="Persönlicher Code">
-        <button class="lnk" type="submit" id="keyBtn">Sichern</button>
-      </form>
-    </div>
-    <div class="row">
-      <button class="lnk" type="button" id="tablesNew">Neuer Tisch</button>
-      <button class="lnk" type="button" id="tablesClose">Schliessen</button>
-    </div>
+<div class="sheet" id="menuSheet" hidden>
+  <div class="sheet-card tall" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="menu-head"><strong id="menuTitle">Menü</strong><button class="lnk" type="button" id="menuClose">Schliessen</button></div>
+    <section class="menu-sec" id="secTable" hidden>
+      <h3>Dieser Tisch</h3>
+      <div class="menu-list" id="tableActions">
+        <button class="mi" type="button" id="menuShare"><span class="ic" aria-hidden="true">↗</span><span class="grow">Link teilen<small>Damit jemand Platz nehmen kann</small></span></button>
+        <button class="mi" type="button" id="menuNewGame"><span class="ic" aria-hidden="true">↻</span><span class="grow">Neues Spiel</span></button>
+        <button class="mi" type="button" id="menuName"><span class="ic" aria-hidden="true">✎</span><span class="grow" id="menuNameText">Mein Name</span><span class="chev" aria-hidden="true">›</span></button>
+        <button class="mi danger" type="button" id="menuClear"><span class="ic" aria-hidden="true">✕</span><span class="grow">Plätze freigeben</span></button>
+      </div>
+      <div class="confirm" id="confirm" hidden>
+        <span id="confirmText"></span>
+        <button class="lnk" type="button" id="confirmNo">Weiterspielen</button>
+        <button class="lnk danger" type="button" id="confirmYes">Ja</button>
+      </div>
+    </section>
+    <section class="menu-sec">
+      <h3>Tische</h3>
+      <ul class="tables" id="tablesList"></ul>
+      <div class="menu-list">
+        <button class="mi" type="button" id="tablesNew"><span class="ic" aria-hidden="true">＋</span><span class="grow">Neuer Tisch</span></button>
+        <details id="keyBox">
+          <summary class="mi"><span class="ic" aria-hidden="true">🔑</span><span class="grow">Persönlicher Code<small id="keySum"></small></span><span class="chev" aria-hidden="true">›</span></summary>
+          <div class="keybox">
+            <p class="note" id="keyText"></p>
+            <form id="keyForm">
+              <input id="keyInput" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="z. B. brokkoli-2207" aria-label="Persönlicher Code">
+              <button class="lnk" type="submit" id="keyBtn">Sichern</button>
+            </form>
+          </div>
+        </details>
+      </div>
+    </section>
+    <section class="menu-sec" id="secSettings">
+      <h3>Einstellungen</h3>
+      <div class="menu-list">
+        <div class="mi" id="soundRow"><span class="ic" aria-hidden="true">🔈</span><span class="grow">Ton<small>Ein Gong, wenn du dran bist</small></span><button class="switch" type="button" id="soundSwitch" role="switch" aria-checked="true" aria-label="Ton"></button></div>
+        <div class="mi" id="pushRow" hidden><span class="ic" aria-hidden="true">🔔</span><span class="grow">Benachrichtigungen<small id="pushText"></small><button class="inline-lnk" type="button" id="pushTest" hidden>Test senden</button></span><button class="switch" type="button" id="pushSwitch" role="switch" aria-checked="false" aria-label="Benachrichtigungen"></button></div>
+        <details id="notesBox" hidden>
+          <summary class="mi"><span class="ic" aria-hidden="true">💌</span><span class="grow">Eigene Liebesbotschaften</span><span class="chev" aria-hidden="true">›</span></summary>
+          <p class="note" id="notesIntro"></p>
+          <textarea id="notesText" rows="7" maxlength="4500" aria-label="Eigene Liebesbotschaften, eine pro Zeile"></textarea>
+          <div class="row"><button class="lnk" type="button" id="notesSave">Speichern</button></div>
+        </details>
+      </div>
+    </section>
+    <section class="menu-sec">
+      <div class="menu-list">
+        <details>
+          <summary class="mi"><span class="ic" aria-hidden="true">📖</span><span class="grow">Spielregeln</span><span class="chev" aria-hidden="true">›</span></summary>
+          <ul>
+            <li>Pro Zug hast du drei Würfe. Tippe Würfel an, um sie zwischen den Würfen zu halten.</li>
+            <li>Einer bis Sechser: die Summe dieser Augenzahl. Mit 63 oder mehr Punkten im oberen Teil gibt es 50 Bonuspunkte.</li>
+            <li>Ein Paar, Zwei Paare, Dreier- und Viererpasch: die Summe dieser Würfel. Die zwei Paare müssen verschiedene Zahlen sein.</li>
+            <li>Kleine Strasse 1-2-3-4-5 gibt 15 Punkte, grosse Strasse 2-3-4-5-6 gibt 20.</li>
+            <li>Full House: drei gleiche und zwei andere gleiche Würfel. Gezählt wird die Summe aller Würfel.</li>
+            <li>Chance: die Summe aller Würfel. Yatzy, fünf gleiche Würfel: 50.</li>
+            <li>Passt nichts, musst du in einem Feld deiner Wahl eine 0 eintragen.</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+    <p class="note" id="verNote"></p>
   </div>
 </div>
 <div class="sheet" id="seatSheet" hidden>
@@ -474,7 +501,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '10 · 02.11.2026';
+const VERSION = '11 · 02.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1138,27 +1165,14 @@ const VERSION = '10 · 02.11.2026';
     }
     if (st) lastWritten = st.updatedAt;
     document.title = mode === 'remote' && myTurn ? 'Du bist dran · Yatzy' : 'Yatzy zu zweit';
-    $('soundBtn').hidden = mode !== 'remote';
-    $('soundBtn').setAttribute('aria-pressed', soundOn ? 'true' : 'false');
-    $('soundLabel').textContent = soundOn ? 'Ton an' : 'Ton aus';
     keepAwake();
     $('padNote').textContent = st && st.status === 'playing' ? `Runde ${Math.min(15, Math.min(filled(st.scores.p1), filled(st.scores.p2)) + 1)} von 15` : '';
 
-    // footer
-    const canManage = mode === 'local' || !!me;
-    $('footActions').hidden = !canManage || !!pendingConfirm;
-    $('confirm').hidden = !pendingConfirm;
-    $('modeNote').textContent =
-      mode === 'local' ? localReason
-      : mode === 'remote' ? 'Die Züge werden laufend zwischen beiden Handys synchronisiert. Ihr könnt die Seite schliessen und später weiterspielen, das Spiel wartet auf euch.'
-      : '';
-    $('viewBtn').hidden = mode === 'connecting';
-    $('viewBtn').textContent = !paper ? '🎲 Mit echten Würfeln spielen'
-      : net ? '📱 Zurück zum Online-Spiel' : '🎲 Zurück zu den Würfeln auf dem Handy';
+    // under the score pad only a note when this phone plays on its own; everything else is in the menu
+    $('modeNote').textContent = mode === 'local' ? localReason : '';
     const showShare = mode === 'remote' && !!me && !!st && st.status === 'waiting';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
-    $('footShare').hidden = mode !== 'remote';
     const canReact = mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && (st.status === 'playing' || st.status === 'over');
     if (!canReact) reactOpen = false;
     $('reactBtn').hidden = !canReact;
@@ -1166,7 +1180,6 @@ const VERSION = '10 · 02.11.2026';
     $('reactBtn').textContent = reactOpen ? '✕' : '😊';
     $('reactBtn').setAttribute('aria-label', reactOpen ? 'Reaktionen schliessen' : 'Reaktion senden');
     $('reactPanel').hidden = !reactOpen;
-    $('tablesBtn').hidden = myRooms().length < 2;   // more than one table: switch at the top
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
     if (offline && !wasOffline) toast('Keine Verbindung. Deine Züge werden gesendet, sobald du wieder online bist.');
@@ -1174,6 +1187,7 @@ const VERSION = '10 · 02.11.2026';
     renderStats(st);
     renderNotes(st, me);
     renderPush(st, me);
+    renderMenu(st, me);
     // the same person on another device (or the home-screen app) takes their seat back
     const showReclaim = mode === 'remote' && !me && !!st && !!st.seats.p1 && !!st.seats.p2;
     $('reclaim').hidden = !showReclaim;
@@ -1346,11 +1360,28 @@ const VERSION = '10 · 02.11.2026';
     joinEmoji = joinEmoji === b.dataset.emo ? '' : b.dataset.emo;
     render();
   }));
+  // ---------- menu: this table, all tables, settings ----------
+  function renderMenu(st, me){
+    const canManage = mode === 'local' || !!me;
+    $('secTable').hidden = !canManage;
+    $('tableActions').hidden = !!pendingConfirm;
+    $('confirm').hidden = !pendingConfirm;
+    $('menuShare').hidden = mode !== 'remote';
+    $('menuName').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats[me]);
+    $('menuNameText').textContent = secret ? 'Mein Name und Symbol' : 'Mein Name';
+    $('soundRow').hidden = mode !== 'remote';
+    $('soundSwitch').setAttribute('aria-checked', String(soundOn));
+    $('secSettings').hidden = [...$('secSettings').querySelectorAll('.menu-list > *')].every(e => e.hidden);
+    $('menuDot').hidden = !pushUndecided(st, me);
+  }
+  // "Neues Spiel" and "Plätze freigeben" ask first, inside the menu
   function ask(text, fn){ pendingConfirm = fn; $('confirmText').textContent = text; render(); }
-  $('newGameBtn').addEventListener('click', () => ask('Neues Spiel starten? Der aktuelle Spielstand geht verloren.', newGame));
-  $('clearBtn').addEventListener('click', () => ask('Beide Plätze und die Siegesbilanz löschen? Danach müssen sich alle neu hinsetzen.', clearSeats));
+  $('menuNewGame').addEventListener('click', () => ask('Neues Spiel starten? Der aktuelle Spielstand geht verloren.', newGame));
+  $('menuClear').addEventListener('click', () => ask('Beide Plätze und die Siegesbilanz löschen? Danach müssen sich alle neu hinsetzen.', clearSeats));
   $('confirmNo').addEventListener('click', () => { pendingConfirm = null; render(); });
-  $('confirmYes').addEventListener('click', () => { const fn = pendingConfirm; pendingConfirm = null; fn && fn(); render(); });
+  $('confirmYes').addEventListener('click', () => { const fn = pendingConfirm; pendingConfirm = null; closeMenu(); fn && fn(); render(); });
+  $('menuShare').addEventListener('click', () => { closeMenu(); shareLink(); });
+  $('menuName').addEventListener('click', () => { const me = mySeat(); closeMenu(); if (me) openSeat(me); });
 
   let toastTimer;
   function toast(t){
@@ -1389,17 +1420,7 @@ const VERSION = '10 · 02.11.2026';
     try { await navigator.clipboard.writeText(url); toast('Link kopiert. Füge ihn in eine Nachricht ein.'); }
     catch(_) { const i = $('shareUrl'); i.hidden = false; i.select(); toast('Markiere den Link und kopiere ihn.'); }
   }
-  // Switch between the online table and the paper sheet. The page reloads on the new address.
-  $('viewBtn').addEventListener('click', () => {
-    let room = '';
-    try {
-      localStorage.setItem('yatzy-view', paper ? 'online' : 'papier');
-      room = localStorage.getItem('yatzy-room') || '';
-    } catch(_) {}
-    location.hash = paper ? room : 'papier';
-  });
   $('shareBtn').addEventListener('click', shareLink);
-  $('footShare').addEventListener('click', shareLink);
 
   let localReason = 'Ihr spielt auf diesem Handy und gebt es nach jedem Zug weiter.';
 
@@ -1473,7 +1494,7 @@ const VERSION = '10 · 02.11.2026';
     else if (prev.status === 'waiting' && next.status !== 'waiting') chime(SOUND_JOIN);
     else if (prev.status === 'playing' && next.status === 'over') chime(SOUND_OVER);
   }
-  $('soundBtn').addEventListener('click', () => {
+  $('soundSwitch').addEventListener('click', () => {
     soundOn = !soundOn;
     try { localStorage.setItem('yatzy-sound', soundOn ? 'on' : 'off'); } catch(_) {}
     unlockAudio();
@@ -1581,7 +1602,7 @@ const VERSION = '10 · 02.11.2026';
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const pushReady = () => !!server && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && (!isIOS || standalone);
   const b64uBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
-  let pushBusy = false, pushChecked = false, pushAutoOpen = false;
+  let pushBusy = false, pushChecked = false;
   // Switched on once per phone: then every table this phone sits at gets its push address.
   // 'yatzy-push' keeps those tables (room → seat), so switching off reaches all of them.
   const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch(_) { return d; } };
@@ -1616,43 +1637,37 @@ const VERSION = '10 · 02.11.2026';
   }
   function renderPush(st, me){
     const show = !!server && mode === 'remote' && !!me && !!st && !!st.seats[me];
-    const box = $('pushBox');
-    box.hidden = !show;
+    $('pushRow').hidden = !show;
     if (!show) return;
-    const text = $('pushText');
-    $('pushOn').hidden = $('pushOff').hidden = $('pushTest').hidden = true;
+    const text = $('pushText'), sw = $('pushSwitch');
+    $('pushTest').hidden = true;
+    sw.hidden = false; sw.disabled = pushBusy;
     if (!pushReady()){
-      $('pushSum').textContent = '🔔 Benachrichtigungen';
+      sw.hidden = true;
       text.textContent = isIOS && !standalone
-        ? 'Benachrichtigungen gibt es auf dem iPhone nur in der App auf dem Home-Bildschirm: in Safari auf Teilen › Zum Home-Bildschirm tippen und Yatzy dort öffnen.'
+        ? 'Nur in der App auf dem Home-Bildschirm: in Safari auf Teilen › Zum Home-Bildschirm tippen und Yatzy dort öffnen.'
         : 'Dieser Browser kann keine Benachrichtigungen empfangen.';
       return;
     }
     if (Notification.permission === 'denied'){
-      $('pushSum').textContent = '🔕 Benachrichtigungen: blockiert';
-      text.textContent = 'Erlaube sie in den iPhone-Einstellungen unter Mitteilungen › Yatzy.';
+      sw.hidden = true;
+      text.textContent = 'Blockiert. Erlaube sie in den iPhone-Einstellungen unter Mitteilungen › Yatzy.';
       return;
     }
     const on = pushWanted() && Notification.permission === 'granted';
     if (on && !pushChecked){ pushChecked = true; refreshPush(me); }
-    if (on){
-      $('pushSum').textContent = '🔔 Benachrichtigungen: an';
-      text.textContent = 'Du bekommst eine Nachricht, wenn du dran bist, das Spiel fertig ist, jemand eine Revanche will oder dir ein Emoji oder eine kurze Antwort schickt, auch bei gesperrtem Handy. Das gilt für alle Tische auf diesem Handy.';
-      $('pushTest').hidden = $('pushOff').hidden = false;
-    } else {
-      $('pushSum').textContent = '🔔 Benachrichtigungen: aus';
-      text.textContent = 'Lass dich benachrichtigen, wenn du dran bist, auch bei gesperrtem Handy. Einmal einschalten genügt, dann gilt es für alle Tische.';
-      $('pushOn').hidden = false;
-      $('pushOn').disabled = pushBusy;
-      // offered open until you close it once; after that it waits closed at the bottom
-      if (!loadJSON('yatzy-push-seen', false) && !box.open){ pushAutoOpen = true; box.open = true; }
-    }
+    sw.setAttribute('aria-checked', String(on));
+    text.textContent = on ? 'Wenn du dran bist, bei Revanche, Emojis und kurzen Antworten, auch bei gesperrtem Handy. Für alle Tische auf diesem Handy.'
+      : 'Lass dich benachrichtigen, wenn du dran bist, auch bei gesperrtem Handy. Gilt für alle Tische.';
+    $('pushTest').hidden = !on;
   }
-  $('pushBox').addEventListener('toggle', () => {
-    if (pushAutoOpen){ pushAutoOpen = false; return; }
-    if (!$('pushBox').open) saveJSON('yatzy-push-seen', true);
-  });
-  $('pushOn').addEventListener('click', async () => {
+  // Not decided yet: a red dot on the menu button, until the menu has been opened once.
+  function pushUndecided(st, me){
+    return !!server && mode === 'remote' && !!me && !!st && !!st.seats[me] && pushReady()
+      && Notification.permission === 'default' && !pushWanted() && !loadJSON('yatzy-push-seen', false);
+  }
+  $('pushSwitch').addEventListener('click', () => $('pushSwitch').getAttribute('aria-checked') === 'true' ? pushOff() : pushOn());
+  async function pushOn(){
     const me = mySeat();
     if (!me || pushBusy) return;
     pushBusy = true; render();
@@ -1660,11 +1675,11 @@ const VERSION = '10 · 02.11.2026';
       if (await Notification.requestPermission() !== 'granted'){ toast('Ohne deine Erlaubnis kann Yatzy keine Benachrichtigungen schicken.'); return; }
       const r = await tellServer(room, me, await pushAddress(true), true);
       saveJSON('yatzy-push-on', true); saveJSON('yatzy-push', {...pushRooms(), [room]: me}); saveJSON('yatzy-push-seen', true);
-      pushChecked = true; $('pushBox').open = false;
-      toast(r.status && r.status < 300 ? 'Benachrichtigungen sind an. Eine Test-Nachricht ist unterwegs.' : 'Benachrichtigungen sind an, aber die Test-Nachricht ging nicht durch. Tippe später auf «Test».');
+      pushChecked = true;
+      toast(r.status && r.status < 300 ? 'Benachrichtigungen sind an. Eine Test-Nachricht ist unterwegs.' : 'Benachrichtigungen sind an, aber die Test-Nachricht ging nicht durch. Tippe später auf «Test senden».');
     } catch(e){ toast('Das hat nicht geklappt. Versuch es nochmals oder starte die App neu.'); }
     finally { pushBusy = false; render(); }
-  });
+  }
   $('pushTest').addEventListener('click', async () => {
     try {
       const r = await tellServer(room, mySeat(), await pushAddress(true), true);
@@ -1672,7 +1687,7 @@ const VERSION = '10 · 02.11.2026';
     } catch(_) { toast('Der Test ging nicht durch. Prüfe die Verbindung.'); }
   });
   // Off for the whole phone: every table that has this phone's address forgets it.
-  $('pushOff').addEventListener('click', async () => {
+  async function pushOff(){
     const left = pushRooms();
     for (const [at, seat] of Object.entries(left)){
       for (const s of SEATS.includes(seat) ? [seat] : SEATS){   // older entries don't know the seat
@@ -1683,7 +1698,7 @@ const VERSION = '10 · 02.11.2026';
     saveJSON('yatzy-push-on', false);
     toast(Object.keys(left).length ? 'Benachrichtigungen sind aus. Ein paar Tische waren nicht erreichbar, versuche es später nochmals.' : 'Benachrichtigungen sind aus.');
     render();
-  });
+  }
   // Opening the app clears the red badge and the notifications of this table.
   async function clearNotifications(){
     if (document.visibilityState !== 'visible') return;
@@ -1749,10 +1764,13 @@ const VERSION = '10 · 02.11.2026';
     return rooms;
   }
 
-  let tablesOpen = false;
-  async function openTables(){
-    tablesOpen = true;
-    $('tablesSheet').hidden = false;
+  let menuOpen = false;
+  async function openMenu(){
+    menuOpen = true;
+    pendingConfirm = null;
+    if (pushUndecided(S, mySeat())) saveJSON('yatzy-push-seen', true);   // the red dot has done its job
+    $('menuSheet').hidden = false;
+    render();
     renderKey();
     drawTables(myRooms(), {});
     if (!net || !navigator.onLine) return;
@@ -1761,12 +1779,12 @@ const VERSION = '10 · 02.11.2026';
     await Promise.all(list.map(async x => {
       try { const d = await net.read(x.id); info[x.id] = d ? clean(d) : 'empty'; } catch(_) {}
     }));
-    if (tablesOpen) drawTables(list, info);
+    if (menuOpen) drawTables(list, info);
   }
-  function closeTables(){ tablesOpen = false; $('tablesSheet').hidden = true; }
+  function closeMenu(){ menuOpen = false; pendingConfirm = null; $('menuSheet').hidden = true; render(); }
   function goTo(target){
     try { localStorage.setItem('yatzy-view', target === 'papier' ? 'papier' : 'online'); } catch(_) {}
-    if (location.hash === '#' + target) closeTables();
+    if (location.hash === '#' + target) closeMenu();
     else location.hash = target;   // hashchange reloads the page
   }
   const day = x => { const d = new Date(typeof x === 'string' ? x.split('~')[0] : x); return isNaN(d) ? '' : d.toLocaleDateString('de-CH', {day: '2-digit', month: '2-digit', year: '2-digit'}); };
@@ -1811,7 +1829,8 @@ const VERSION = '10 · 02.11.2026';
   }
   function renderKey(){
     const code = myCode();
-    $('keyForm').hidden = !net;
+    $('keyBox').hidden = !net;
+    $('keySum').textContent = code ? `«${code}» sichert deine Tische` : 'Sichert deine Tische für ein neues Handy';
     $('keyText').textContent = !net ? ''
       : code ? `Gesichert unter dem Code «${code}» (${myRooms().length} ${myRooms().length === 1 ? 'Tisch' : 'Tische'}). Auf einem anderen Handy, oder wenn die App gelöscht wurde, gibst du hier genau diesen Code ein. Dann sind alle Tische wieder da.`
       : 'Lege einen persönlichen Code fest, zum Beispiel ein Wort mit Zahlen (mindestens 8 Zeichen), das niemand errät. Mit demselben Code holst du deine Tische auf jedem Handy zurück, auch wenn die App gelöscht wurde.';
@@ -1831,18 +1850,18 @@ const VERSION = '10 · 02.11.2026';
       try { localStorage.setItem('yatzy-key', code); } catch(_) {}
       const added = rooms.length - before;
       toast(`Gesichert unter «${code}»: ${rooms.length} ${rooms.length === 1 ? 'Tisch' : 'Tische'}` + (added > 0 ? `, ${added} davon neu von einem anderen Handy.` : '.'));
-      openTables();
+      openMenu();
     } catch(err){
       toast(err && err.code === 'unavailable' ? 'Der Server ist gerade nicht erreichbar. Prüfe die Verbindung und versuche es nochmals.'
         : `Das ging nicht (${(err && (err.code || err.message)) || 'unbekannter Fehler'}). Prüfe die Verbindung und versuche es nochmals.`);
     } finally { $('keyBtn').disabled = false; }
   });
-  secretGesture(document.querySelector('.pad h2'), openTables);
-  $('tablesClose').addEventListener('click', closeTables);
-  $('tablesBtn').addEventListener('click', openTables);
-  $('tablesSheet').addEventListener('click', e => { if (e.target === $('tablesSheet')) closeTables(); });
+  secretGesture(document.querySelector('.pad h2'), openMenu);
+  $('menuBtn').addEventListener('click', openMenu);
+  $('menuClose').addEventListener('click', closeMenu);
+  $('menuSheet').addEventListener('click', e => { if (e.target === $('menuSheet')) closeMenu(); });
   $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
-  addEventListener('keydown', e => { if (e.key === 'Escape' && tablesOpen) closeTables(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) closeMenu(); });
 
   // ---------- the server: our own on Cloudflare (server/) ----------
   // The page uses only these few calls:
