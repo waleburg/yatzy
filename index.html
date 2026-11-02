@@ -229,9 +229,10 @@ td.cell.tap{cursor:pointer}
 .opt.empty .box{min-height:28px}
 
 /* ---------- value picker for the paper sheet ---------- */
-.sheet{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--vv-height,100%);z-index:22;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,20,30,.45)}
+.sheet{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--vv-height,100%);z-index:22;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,20,30,.45);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
 /* The overlay covers only the visible area (iOS leaves fixed elements under the keyboard otherwise), see fitSheets(). */
-.sheet-card{max-height:calc(var(--vv-height,100vh) - 16px);overflow:auto;overscroll-behavior:contain}
+/* The app draws under the status bar (black-translucent): sheets stop below it. */
+.sheet-card{max-height:calc(var(--vv-height,100vh) - env(safe-area-inset-top,0px) - 12px);overflow:auto;overscroll-behavior:contain}
 .sheet-card{--seat:var(--ink1);width:min(520px,100%);padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
   background:var(--paper);color:var(--fg);border-radius:18px 18px 0 0;box-shadow:0 -8px 28px rgba(0,0,0,.25);animation:sheet .22s ease-out}
 @keyframes sheet{from{transform:translateY(40px);opacity:0}}
@@ -262,7 +263,7 @@ td.cell.tap{cursor:pointer}
 #seatName{min-height:48px;border-radius:10px;border:1.5px solid var(--seat);background:var(--paper);color:var(--fg);font:inherit;font-size:16px;padding:0 12px}
 .keybox{padding:0 12px 12px}
 /* the menu: one sheet with everything you can do or set, in three groups */
-.menu-head{display:flex;align-items:center;justify-content:space-between}
+.menu-head{display:flex;align-items:center;justify-content:space-between;position:sticky;top:-16px;z-index:2;margin-top:-16px;padding:16px 0 10px;background:var(--paper)}
 .menu-head strong{font-size:20px;color:var(--print)}
 .menu-head .lnk{min-height:36px}
 .menu-sec{margin-top:16px}
@@ -287,6 +288,7 @@ details[open] > .mi .chev{transform:rotate(90deg)}
 .switch[aria-checked="true"]::after{left:21px}
 .switch:disabled{opacity:.5;cursor:default}
 .inline-lnk{align-self:flex-start;border:none;background:none;padding:2px 0 0;color:var(--print);font:inherit;font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
+.inline-lnk:disabled{text-decoration:none;color:var(--muted);cursor:default}
 .menu-sec .confirm{margin-top:8px}
 #verNote{text-align:center;margin:16px 0 0}
 .keybox p{margin:0 0 8px}
@@ -313,7 +315,7 @@ details li{margin:3px 0}
 .note-love small{display:block;margin-top:6px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--love-muted)}
 @keyframes slip{from{opacity:0;transform:translateX(-50%) translateY(30px) rotate(4deg)}to{opacity:1;transform:translateX(-50%) rotate(-2deg)}}
 @media (prefers-reduced-motion: reduce){.note-love{animation:none}}
-.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:min(440px,calc(100% - 32px));background:var(--toast);color:var(--toast-fg);padding:10px 14px;border-radius:10px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:20}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:min(440px,calc(100% - 32px));background:var(--toast);color:var(--toast-fg);padding:10px 14px;border-radius:10px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:40}   /* above the sheets (22), so messages show while the menu is open */
 .share{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .share p{margin:0;font-size:14px;color:var(--felt-muted);text-align:center;text-wrap:balance}
 .share-row{display:flex;gap:8px}
@@ -501,7 +503,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '11 · 02.11.2026';
+const VERSION = '12 · 02.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1680,11 +1682,17 @@ const VERSION = '11 · 02.11.2026';
     } catch(e){ toast('Das hat nicht geklappt. Versuch es nochmals oder starte die App neu.'); }
     finally { pushBusy = false; render(); }
   }
+  // The link itself shows what happens: sending…, sent ✓ or failed, then back to normal.
   $('pushTest').addEventListener('click', async () => {
+    const b = $('pushTest');
+    if (b.disabled) return;
+    const done = (text, msg) => { b.textContent = text; toast(msg); setTimeout(() => { b.textContent = 'Test senden'; b.disabled = false; }, 3000); };
+    b.disabled = true; b.textContent = 'Wird gesendet …';
     try {
       const r = await tellServer(room, mySeat(), await pushAddress(true), true);
-      toast(r.status && r.status < 300 ? 'Test gesendet. Die Nachricht sollte gleich erscheinen.' : 'Der Test ging nicht durch. Schalte die Benachrichtigungen aus und wieder ein.');
-    } catch(_) { toast('Der Test ging nicht durch. Prüfe die Verbindung.'); }
+      if (r.status && r.status < 300) done('Gesendet ✓', 'Test gesendet. Die Nachricht sollte gleich erscheinen.');
+      else done('Ging nicht durch', 'Der Test ging nicht durch. Schalte die Benachrichtigungen aus und wieder ein.');
+    } catch(_) { done('Ging nicht durch', 'Der Test ging nicht durch. Prüfe die Verbindung.'); }
   });
   // Off for the whole phone: every table that has this phone's address forgets it.
   async function pushOff(){

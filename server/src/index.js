@@ -203,7 +203,7 @@ export class Table extends DurableObject {
     if (!this.env.VAPID_PRIVATE_JWK) return null;
     try {
       const res = await sendPush(this.env, sub, message);
-      if (!res.ok) console.log(`push ${this.room()} ${seat} failed: ${res.status}`);
+      if (!res.ok) console.log(`push ${this.room()} ${seat} failed: ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
       // the phone dropped this address (app deleted, notifications switched off)
       if (res.status === 404 || res.status === 410){ delete this.push[seat]; await this.ctx.storage.put('push', this.push); }
       return res;
