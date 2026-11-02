@@ -15,6 +15,8 @@ export const SEATS = ['p1','p2'];
 export const EMOJIS = ['🥦','💚'];
 export const REACTIONS = [['😂','Lachen'], ['😍','Verliebt'], ['😘','Kuss'], ['🙄','Genervt'], ['😡','Wütend'], ['😱','Schockiert'], ['👏','Applaus']];
 export const REACT_SET = REACTIONS.map(r => r[0]);
+// Quick replies, sent like a reaction and also as a notification.
+export const SAYINGS = [['minute', 'Gib mer e Minute ⏳'], ['later', 'Spöter hüt 🌙'], ['tomorrow', 'Morn ☀️'], ['now', 'Bi grad da 🎲']];
 export const HISTORY_MAX = 50;
 export const other = s => s === 'p1' ? 'p2' : 'p1';
 
@@ -67,6 +69,7 @@ export function clean(raw){
       nick: str(v.nick, 16),
       emoji: EMOJIS.includes(v.emoji) ? v.emoji : '',
       react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null,
+      say: v.say && SAYINGS.some(x => x[0] === v.say.k) && Number.isFinite(v.say.n) ? {k: v.say.k, n: v.say.n} : null,
       notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : [],
       yz: int(v.yz, 0, 15) ? v.yz : 0
     };
@@ -182,8 +185,8 @@ export function takeSeat(s, id, nick, emoji = ''){
   if (SEATS.some(seat => s.seats[seat] && s.seats[seat].id === id)) return false;
   const seat = !s.seats.p1 ? 'p1' : !s.seats.p2 ? 'p2' : null;
   if (!seat) return 'full';
-  s.seats[seat] = {id, nick: String(nick || '').slice(0, 16), emoji: '', react: null, notes: [], yz: 0};
-  setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : null);
+  s.seats[seat] = {id, nick: String(nick || '').slice(0, 16), emoji: '', react: null, say: null, notes: [], yz: 0};
+  setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : '');
   if (s.seats.p1 && s.seats.p2 && s.status === 'waiting'){
     s.status = 'playing'; s.turn = s.starter;
     resetTurn(s);
@@ -198,13 +201,13 @@ export function editSeat(s, seat, nick, emoji){
   if (n) v.nick = n;
   setEmoji(s, seat, EMOJIS.includes(emoji) ? emoji : '');
 }
-// 🥦 and 💚 go together: picking one gives the other person the other one.
-// null means "no choice made": then you get the one your partner left over, if any.
+// Each symbol once per table. Choosing yours never changes the other person's, unless they
+// had the same one: then theirs goes. Nobody gets 🥦 without choosing it (or their phone
+// remembering it), so the love notes don't reach someone else, at a table with Emma say.
 function setEmoji(s, seat, emoji){
   const v = s.seats[seat], o = s.seats[other(seat)];
-  if (emoji === null){ v.emoji = o && o.emoji ? EMOJIS.find(x => x !== o.emoji) : ''; return; }
   v.emoji = emoji;
-  if (o) o.emoji = emoji ? EMOJIS.find(x => x !== emoji) : '';
+  if (emoji && o && o.emoji === emoji) o.emoji = '';
 }
 export function beginGame(s, names, emojis){
   if (s.status !== 'setup') return false;

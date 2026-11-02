@@ -187,22 +187,32 @@ test('the game starts by itself when the second person sits down', () => {
   assert.equal(takeSeat(s, 'a', 'Marcel', '💚'), 'p1');
   assert.equal(s.status, 'waiting');
   assert.equal(takeSeat(s, 'a', 'Marcel again'), false, 'one seat per device');
-  assert.equal(takeSeat(s, 'b', 'Brokkoli'), 'p2');
+  assert.equal(takeSeat(s, 'b', 'Brokkoli', '🥦'), 'p2');
   assert.equal(s.status, 'playing');
   assert.equal(s.turn, 'p1', 'whoever opened the table begins');
-  assert.equal(s.seats.p2.emoji, '🥦', 'the partner gets the other symbol without seeing the picker');
+  assert.equal(s.seats.p2.emoji, '🥦', 'the symbol her phone remembers');
   assert.equal(takeSeat(s, 'c', 'Anna'), 'full');
+
+  const emma = blank();
+  takeSeat(emma, 'e', 'Emma');
+  takeSeat(emma, 'a', 'Marcel', '💚');
+  assert.equal(emma.seats.p1.emoji, '', 'nobody gets 🥦 without choosing it');
+  assert.equal(loveTeam(emma, 'p2'), false, 'so no love notes for Emma');
 });
 
 test('your own name and symbol can be changed at any time', () => {
   const s = game();
+  s.seats.p1.emoji = '💚';
   editSeat(s, 'p2', '  Brokkoli   Queen ', '🥦');
   assert.equal(s.seats.p2.nick, 'Brokkoli Queen');
   assert.equal(s.seats.p2.emoji, '🥦');
-  assert.equal(s.seats.p1.emoji, '💚', 'the partner gets the other one');
+  assert.equal(s.seats.p1.emoji, '💚', 'the partner keeps theirs');
   editSeat(s, 'p2', '', '');
   assert.equal(s.seats.p2.nick, 'Brokkoli Queen', 'an empty name keeps the old one');
-  assert.equal(s.seats.p1.emoji, '', 'no symbol: the pair is gone');
+  assert.equal(s.seats.p2.emoji, '');
+  assert.equal(s.seats.p1.emoji, '💚', 'removing yours leaves the partner alone');
+  editSeat(s, 'p2', 'Brokkoli', '💚');
+  assert.equal(s.seats.p1.emoji, '', 'each symbol only once per table');
   assert.equal(editSeat(blank(), 'p1', 'x', ''), false);
 });
 

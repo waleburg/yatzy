@@ -78,6 +78,12 @@ button{font:inherit;color:inherit}
 .sound[aria-pressed="false"]{color:var(--felt-muted);border-color:rgba(255,255,255,.15)}
 .sound[aria-pressed="false"] .wave{display:none}
 .sound[aria-pressed="false"] .mute{display:inline}
+.series{white-space:nowrap}
+/* narrow phones with «Tische» shown: the sound button keeps only its speaker (the label stays for screen readers) */
+@media (max-width: 430px){
+  .top:has(#tablesBtn:not([hidden])) #soundBtn{padding:0 9px}
+  .top:has(#tablesBtn:not([hidden])) #soundLabel{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
 .players{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .chip{--seat:var(--on-felt1);display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 10px 9px;border-radius:12px;background:rgba(255,255,255,.06);border:2px solid transparent;transition:opacity .2s, border-color .2s, background .2s}
 .chip.s2{--seat:var(--on-felt2)}
@@ -143,6 +149,10 @@ button{font:inherit;color:inherit}
 .reacts{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
 .rx{min-height:40px;border:none;border-radius:10px;background:rgba(255,255,255,.08);font-size:22px;line-height:1;cursor:pointer;transition:transform .12s, background .12s}
 .rx:active{transform:scale(.88);background:rgba(255,255,255,.18)}
+.says{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:5px}
+.sy{min-height:36px;padding:0 8px;border:none;border-radius:10px;background:rgba(255,255,255,.08);color:var(--felt-fg);font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:transform .12s, background .12s}
+.sy:active{transform:scale(.94);background:rgba(255,255,255,.18)}
+.reaction .say{max-width:min(320px,80vw);padding:12px 18px;border-radius:16px;background:var(--toast);color:var(--toast-fg);font-size:22px;font-weight:700;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .reaction{position:fixed;left:50%;top:38%;z-index:25;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;transform:translate(-50%,-50%);animation:react 2.1s cubic-bezier(.2,.8,.3,1) forwards}
 .reaction .big{font-size:96px;line-height:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.25))}
 .reaction .who{font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--toast);color:var(--toast-fg);white-space:nowrap}
@@ -298,6 +308,10 @@ details li{margin:3px 0}
       <div class="top-right">
         <span class="net" id="netBadge" hidden>Offline</span>
         <div class="series" id="series"></div>
+        <button class="sound" id="tablesBtn" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>
+          <span>Tische</span>
+        </button>
         <button class="sound" id="soundBtn" type="button" aria-pressed="true" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" stroke="none"/><g class="wave"><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></g><g class="mute"><path d="M16 9l5 6M21 9l-5 6"/></g></svg>
           <span id="soundLabel">Ton an</span>
@@ -315,6 +329,7 @@ details li{margin:3px 0}
       <button class="btn ghost" id="undoBtn" type="button" hidden>↶ Rückgängig</button>
     </div>
     <div class="reacts" id="reacts" role="group" aria-label="Reaktion senden" hidden></div>
+    <div class="says" id="says" role="group" aria-label="Kurz antworten" hidden></div>
     <form class="setup" id="setupForm" hidden>
       <div class="fields">
         <div class="field s1"><label class="lab" for="name-p1"><span class="dot"></span><span id="lab-p1">Spieler 1</span></label><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"><div class="pick" role="group" aria-label="Symbol für Spieler 1"><button type="button" class="emo" data-seat="p1" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-seat="p1" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div></div>
@@ -443,15 +458,15 @@ details li{margin:3px 0}
 
 <script type="module">
 import {
-  CATS, KEYS, SEATS, EMOJIS, REACTIONS, other, score, totals, filled, blank, clean, nameOf,
+  CATS, KEYS, SEATS, EMOJIS, REACTIONS, SAYINGS, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
   boxOptions, markBox, mergeRooms, normCode, applyPatch, BOX_MAX, ROOM_RE
-} from './game.js?r=8';   // raise the number when game.js changes, so no phone mixes old and new
+} from './game.js?r=9';   // raise the number when game.js changes, so no phone mixes old and new
                           // (r, not v: service workers up to version 7 answer an unknown ?v= with an old copy)
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '8 · 01.11.2026';
+const VERSION = '9 · 02.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -493,6 +508,7 @@ const VERSION = '8 · 01.11.2026';
   // undo) run as a transaction on the latest server state and show once the server confirms.
   function applyServer(next){
     const prev = S; S = next;
+    rememberEmoji();
     notifyChange(prev, S);
     if (selected && (!isMyTurn() || !S || !S.dice)) selected = null;
     render();
@@ -772,7 +788,20 @@ const VERSION = '8 · 01.11.2026';
     const seat = seatEditing, nick = $('seatName').value, emo = seatEmoji;
     closeSeat();
     if (seat) commit(s => editSeat(s, seat, nick, emo), mode === 'remote');
+    if (seat && mode === 'remote'){ try { localStorage.setItem('yatzy-emoji', emo); } catch(_) {} }
   });
+  // Your symbol follows your phone: it is taken along when you sit down at a new table.
+  // Removing it in the name sheet (above) forgets it.
+  function rememberEmoji(){
+    const me = mode === 'remote' && mySeat(S);
+    const emo = me && S.seats[me].emoji;
+    if (emo){ try { localStorage.setItem('yatzy-emoji', emo); } catch(_) {} }
+  }
+  function rememberedEmoji(){
+    let emo = '';
+    try { emo = localStorage.getItem('yatzy-emoji') || ''; } catch(_) {}
+    return EMOJIS.includes(emo) ? emo : '';
+  }
   $('seatClose').addEventListener('click', closeSeat);
   $('seatSheet').addEventListener('click', e => { if (e.target === $('seatSheet')) closeSeat(); });
   addEventListener('keydown', e => { if (e.key === 'Escape' && seatEditing) closeSeat(); });
@@ -1122,6 +1151,8 @@ const VERSION = '8 · 01.11.2026';
     if (showShare) $('shareUrl').value = location.href;
     $('footShare').hidden = mode !== 'remote';
     $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && (st.status === 'playing' || st.status === 'over'));
+    $('says').hidden = $('reacts').hidden;
+    $('tablesBtn').hidden = myRooms().length < 2;   // more than one table: switch at the top
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
     if (offline && !wasOffline) toast('Keine Verbindung. Deine Züge werden gesendet, sobald du wieder online bist.');
@@ -1294,7 +1325,7 @@ const VERSION = '8 · 01.11.2026';
     const n = seat => $('name-' + seat).value.trim().replace(/\s+/g, ' ').slice(0, 16);
     startGame({p1: n('p1'), p2: n('p2')}, setupEmoji);
   });
-  $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value, joinEmoji); });
+  $('joinForm').addEventListener('submit', e => { e.preventDefault(); join($('nick').value, joinEmoji || rememberedEmoji()); });
   // your symbol when you sit down (only with the 🥦/💚 secret unlocked); tap again to unpick
   let joinEmoji = '';
   $('joinPick').querySelectorAll('.emo').forEach(b => b.addEventListener('click', () => {
@@ -1420,6 +1451,9 @@ const VERSION = '8 · 01.11.2026';
     const o = other(seat);
     const r1 = prev.seats[o] && prev.seats[o].react, r2 = next.seats[o] && next.seats[o].react;
     if (r2 && (!r1 || r1.n !== r2.n) && Math.abs(Date.now() - r2.n) < 120000){ showReaction(r2.e, o); chime(SOUND_REACT); }
+    const q1 = prev.seats[o] && prev.seats[o].say, q2 = next.seats[o] && next.seats[o].say;
+    const said = q2 && SAYINGS.find(x => x[0] === q2.k);
+    if (said && (!q1 || q1.n !== q2.n) && Math.abs(Date.now() - q2.n) < 120000){ showReaction(said[1], o, true); chime(SOUND_REACT); }
     const wasMine = prev.status === 'playing' && prev.turn === seat;
     if (next.status === 'playing' && next.turn === seat && !wasMine) chime(SOUND_TURN);
     else if (prev.status === 'waiting' && next.status !== 'waiting') chime(SOUND_JOIN);
@@ -1492,11 +1526,28 @@ const VERSION = '8 · 01.11.2026';
     try { await ref.update({[`seats.${seat}.react`]: {e: emo, n: now}}); }
     catch(e){ writeFailed(e); }
   }
-  function showReaction(emo, seat){
+  // ---------- quick replies («Gib mer e Minute» …), sent like a reaction ----------
+  for (const [k, text] of SAYINGS){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sy'; b.textContent = text;
+    b.addEventListener('click', () => sendSay(k));
+    $('says').appendChild(b);
+  }
+  async function sendSay(k){
+    const seat = mySeat();
+    if (mode !== 'remote' || !seat) return;
+    const now = Date.now();
+    if (now - lastReact < 1200) return;
+    lastReact = now;
+    showReaction(SAYINGS.find(x => x[0] === k)[1], seat, true);
+    try { await ref.update({[`seats.${seat}.say`]: {k, n: now}}); }
+    catch(e){ writeFailed(e); }
+  }
+  function showReaction(emo, seat, text = false){
     const mine = seat === mySeat();
     const box = document.createElement('div');
     box.className = 'reaction' + (mine ? ' mine' : '');
-    const big = document.createElement('span'); big.className = 'big'; big.textContent = emo;
+    const big = document.createElement('span'); big.className = text ? 'say' : 'big'; big.textContent = emo;
     const who = document.createElement('span'); who.className = 'who'; who.textContent = mine ? 'Gesendet' : seatLabel(seat);
     box.append(big, who);
     document.body.appendChild(box);
@@ -1567,7 +1618,7 @@ const VERSION = '8 · 01.11.2026';
     if (on && !pushChecked){ pushChecked = true; refreshPush(me); }
     if (on){
       $('pushSum').textContent = '🔔 Benachrichtigungen: an';
-      text.textContent = 'Du bekommst eine Nachricht, wenn du dran bist, das Spiel fertig ist, jemand eine Revanche will oder dir ein Emoji schickt, auch bei gesperrtem Handy. Das gilt für alle Tische auf diesem Handy.';
+      text.textContent = 'Du bekommst eine Nachricht, wenn du dran bist, das Spiel fertig ist, jemand eine Revanche will oder dir ein Emoji oder eine kurze Antwort schickt, auch bei gesperrtem Handy. Das gilt für alle Tische auf diesem Handy.';
       $('pushTest').hidden = $('pushOff').hidden = false;
     } else {
       $('pushSum').textContent = '🔔 Benachrichtigungen: aus';
@@ -1620,7 +1671,7 @@ const VERSION = '8 · 01.11.2026';
     try { if (navigator.clearAppBadge) await navigator.clearAppBadge(); } catch(_) {}
     try {
       const reg = 'serviceWorker' in navigator && await navigator.serviceWorker.getRegistration();
-      if (reg && room) for (const tag of ['yatzy-' + room, 'yatzy-react-' + room]) for (const n of await reg.getNotifications({tag})) n.close();
+      if (reg && room) for (const tag of ['yatzy-' + room, 'yatzy-react-' + room, 'yatzy-say-' + room]) for (const n of await reg.getNotifications({tag})) n.close();
     } catch(_) {}
   }
   document.addEventListener('visibilitychange', clearNotifications);
@@ -1769,6 +1820,7 @@ const VERSION = '8 · 01.11.2026';
   });
   secretGesture(document.querySelector('.pad h2'), openTables);
   $('tablesClose').addEventListener('click', closeTables);
+  $('tablesBtn').addEventListener('click', openTables);
   $('tablesSheet').addEventListener('click', e => { if (e.target === $('tablesSheet')) closeTables(); });
   $('tablesNew').addEventListener('click', () => goTo('raum-' + [...crypto.getRandomValues(new Uint8Array(8))].map(x => (x % 36).toString(36)).join('')));
   addEventListener('keydown', e => { if (e.key === 'Escape' && tablesOpen) closeTables(); });

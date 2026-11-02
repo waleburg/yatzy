@@ -2,7 +2,7 @@
 // tests/server.test.mjs can check it with `node --test`. The rules come from the same
 // game.js the page uses, and every stored state goes through clean(), like a phone reading it.
 
-import { clean, mergeResults, mergeRooms, applyPatch, totals, filled, nameOf, other, CATS, SEATS, REACTIONS, FIELDS, ROOM_RE } from '../../game.js';
+import { clean, mergeResults, mergeRooms, applyPatch, totals, filled, nameOf, other, CATS, SEATS, REACTIONS, SAYINGS, FIELDS, ROOM_RE } from '../../game.js';
 
 export { ROOM_RE };
 export const MAX_BYTES = 64000;
@@ -67,7 +67,7 @@ export const mergeCode = (stored, sent) => mergeRooms(stored, sent);
 // What to tell whom after a change: the person whose turn it now is, both when a game ends,
 // both when someone asks for a Revanche (the one who asked has the app open, and the
 // caller skips phones that are looking at the table), and the other person when someone
-// sends a reaction.
+// sends a reaction or a quick reply.
 const label = (st, seat) => (st.seats[seat] && st.seats[seat].emoji ? st.seats[seat].emoji + ' ' : '') + nameOf(seat, st);
 export function pushMessages(prev, next, room, appUrl){
   if (!next) return [];
@@ -98,6 +98,10 @@ export function pushMessages(prev, next, room, appUrl){
       const name = (REACTIONS.find(x => x[0] === r.e) || [])[1] || '';
       out.push({seat, kind: 'react', message: {...base, tag: 'yatzy-react-' + room, title: label(next, o), body: `${r.e} ${name}`.trim()}});
     }
+    const q = next.seats[o] && next.seats[o].say, wasQ = prev && prev.seats[o] && prev.seats[o].say;
+    const text = q && (SAYINGS.find(x => x[0] === q.k) || [])[1];
+    if (text && (!wasQ || wasQ.n !== q.n))
+      out.push({seat, kind: 'say', message: {...base, tag: 'yatzy-say-' + room, title: label(next, o), body: text}});
   }
   return out;
 }

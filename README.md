@@ -59,7 +59,7 @@ Mit einem kostenlosen GitHub-Konto muss das Repository für Pages öffentlich se
 
 **Revanche** startet das nächste Spiel sofort, abwechselnd beginnt die andere Person. Deinen Namen änderst du jederzeit, indem du oben auf ihn tippst.
 
-Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür musst du dich im Formular «Marcel» nennen.
+Die Liebesbotschaften gehen nur von 💚 an 🥦. Niemand bekommt 🥦 automatisch: Dein Handy merkt sich dein Symbol und nimmt es an neue Tische mit. An einem Tisch mit jemand anderem, zum Beispiel Emma, kommen deshalb keine Liebesbotschaften an.
 
 **Tipp:** Füge die Seite in Safari über **Teilen › Zum Home-Bildschirm** hinzu. Dann öffnet sie sich wie eine App.
 
@@ -69,8 +69,9 @@ Die Liebesbotschaften gehen an die Person, die nicht «Marcel» heisst. Dafür m
 
 - **Mit echten Würfeln:** Unten auf der Seite wechselst du mit «🎲 Mit echten Würfeln spielen» zum Spielblock. Ihr würfelt am Tisch, tippt auf ein Feld und wählt die Punkte. Angeboten werden nur Werte, die mit fünf Würfeln möglich sind. Eingetragenes kannst du antippen und ändern oder leeren. Der Block wird nur auf diesem Handy gespeichert, funktioniert ganz ohne Internet und hält den Bildschirm an. Die Adresse dafür ist `…/#papier`. Mit «Zurück zum Online-Spiel» kommst du wieder an euren Tisch.
 - **Ergebnisse vom Spielblock:** Fertige Spiele kommen in die Statistik des Online-Tisches, den dieses Handy zuletzt geöffnet hat. Ohne Verbindung geschieht das automatisch, sobald das Handy wieder online ist. Die Spieler werden über die Namen zugeordnet, nennt euch also gleich wie am Online-Tisch. Korrigierst du ein fertiges Spiel nachträglich, wird der Eintrag in der Statistik ersetzt.
-- **Meine Tische:** Eine versteckte Liste zeigt alle Tische, die das Handy geöffnet hat, mit wer gegen wen spielt, Spielstand, Siegen und Datum. Antippen öffnet den Tisch. Mit einem persönlichen Code wird die Liste zusätzlich auf dem Server gesichert. Gibst du denselben Code auf einem anderen Handy ein, oder nachdem die App gelöscht wurde, sind alle Tische wieder da.
-- **Benachrichtigungen:** Unten auf der Seite schaltest du sie einmal pro Handy ein, dann gelten sie für alle Tische. Danach steht dort nur noch eine zugeklappte Zeile «Benachrichtigungen: an» mit Test und Ausschalten. Du bekommst eine Nachricht, wenn du dran bist, wenn das Spiel fertig ist, wenn jemand eine Revanche will und wenn dir jemand ein Emoji schickt, aber nicht, solange die App bei dir offen ist. Auf dem iPhone geht das nur in der App auf dem Home-Bildschirm (iOS 16.4 oder neuer).
+- **Meine Tische:** Kennt das Handy mehr als einen Tisch, erscheint oben «Tische». Die Liste zeigt alle Tische, die das Handy geöffnet hat, mit wer gegen wen spielt, Spielstand, Siegen und Datum. Antippen öffnet den Tisch. Mit einem persönlichen Code wird die Liste zusätzlich auf dem Server gesichert. Gibst du denselben Code auf einem anderen Handy ein, oder nachdem die App gelöscht wurde, sind alle Tische wieder da.
+- **Benachrichtigungen:** Unten auf der Seite schaltest du sie einmal pro Handy ein, dann gelten sie für alle Tische. Danach steht dort nur noch eine zugeklappte Zeile «Benachrichtigungen: an» mit Test und Ausschalten. Du bekommst eine Nachricht, wenn du dran bist, wenn das Spiel fertig ist, wenn jemand eine Revanche will und wenn dir jemand ein Emoji oder eine kurze Antwort schickt, aber nicht, solange die App bei dir offen ist. Auf dem iPhone geht das nur in der App auf dem Home-Bildschirm (iOS 16.4 oder neuer).
+- **Kurze Antworten:** Unter den Emojis stehen «Gib mer e Minute ⏳», «Spöter hüt 🌙», «Morn ☀️» und «Bi grad da 🎲». Sie erscheinen bei der anderen Person in der App oder als Benachrichtigung.
 - **Erinnerung:** Bist du seit drei Stunden dran, kommt eine einzige Erinnerung. Nachts zwischen 22 und 8 Uhr wartet sie bis zum Morgen.
 - **Grüner Punkt:** Neben dem Namen der anderen Person leuchtet ein grüner Punkt, solange sie die App gerade offen hat.
 - **Version:** Ganz unten steht die Version. So siehst du, ob beide Handys die neuste haben.

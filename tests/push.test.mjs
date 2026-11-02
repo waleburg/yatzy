@@ -65,6 +65,14 @@ test('a held-back notification is only sent later if it still fits', () => {
   assert.equal(stillDue('turn', 'p1', null), false);
 });
 
+test('a quick reply reaches the other person as a message from the sender', () => {
+  const next = game();
+  next.seats.p2.say = {k: 'later', n: 2000};
+  const out = pushMessages(game(), next, 'raum-test1234', APP);
+  assert.deepEqual(out, [{seat: 'p1', kind: 'say', message: {tag: 'yatzy-say-raum-test1234', url: APP + '#raum-test1234', title: '🥦 Brokkoli', body: 'Spöter hüt 🌙'}}]);
+  assert.deepEqual(pushMessages(next, next, 'raum-test1234', APP), [], 'the same reply only once');
+});
+
 test('pushes only go to real push services over https', () => {
   const sub = endpoint => ({endpoint, keys: {p256dh: 'x', auth: 'y'}});
   assert.ok(subscription(sub('https://web.push.apple.com/abc')));
