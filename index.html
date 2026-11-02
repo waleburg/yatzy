@@ -146,7 +146,12 @@ button{font:inherit;color:inherit}
 .field input{border-color:var(--seat)}
 .brand{margin:0;padding:4px 6px 4px 0;border:0;background:none;color:inherit;font-family:var(--font-ui);cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .setup:not(.secret) .pick{display:none}
-.reacts{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
+/* reactions wait behind the round 😊 button in the control row */
+.react-btn{flex:none;width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:var(--felt-fg);font-size:22px;line-height:1;cursor:pointer;padding:0;transition:background .12s, transform .12s}
+.react-btn[aria-expanded="true"]{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.55);font-size:18px;font-weight:700}
+.react-btn:active{transform:scale(.92)}
+.react-panel{margin-top:10px;padding:8px;border-radius:14px;background:rgba(0,0,0,.18)}
+.reacts{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .rx{min-height:40px;border:none;border-radius:10px;background:rgba(255,255,255,.08);font-size:22px;line-height:1;cursor:pointer;transition:transform .12s, background .12s}
 .rx:active{transform:scale(.88);background:rgba(255,255,255,.18)}
 .says{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:5px}
@@ -327,9 +332,12 @@ details li{margin:3px 0}
       <button class="btn" id="primary" type="button" disabled>Würfeln</button>
       <button class="btn ghost" id="cancel" type="button" hidden>Abbrechen</button>
       <button class="btn ghost" id="undoBtn" type="button" hidden>↶ Rückgängig</button>
+      <button class="react-btn" id="reactBtn" type="button" aria-expanded="false" aria-controls="reactPanel" aria-label="Reaktion senden" hidden>😊</button>
     </div>
-    <div class="reacts" id="reacts" role="group" aria-label="Reaktion senden" hidden></div>
-    <div class="says" id="says" role="group" aria-label="Kurz antworten" hidden></div>
+    <div class="react-panel" id="reactPanel" hidden>
+      <div class="reacts" id="reacts" role="group" aria-label="Emoji senden"></div>
+      <div class="says" id="says" role="group" aria-label="Kurz antworten"></div>
+    </div>
     <form class="setup" id="setupForm" hidden>
       <div class="fields">
         <div class="field s1"><label class="lab" for="name-p1"><span class="dot"></span><span id="lab-p1">Spieler 1</span></label><input id="name-p1" name="name-p1" maxlength="16" autocomplete="off" placeholder="Spieler 1"><div class="pick" role="group" aria-label="Symbol für Spieler 1"><button type="button" class="emo" data-seat="p1" data-emo="🥦" aria-pressed="false" aria-label="Brokkoli">🥦</button><button type="button" class="emo" data-seat="p1" data-emo="💚" aria-pressed="false" aria-label="Grünes Herz">💚</button></div></div>
@@ -466,7 +474,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '9 · 02.11.2026';
+const VERSION = '10 · 02.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -486,6 +494,7 @@ const VERSION = '9 · 02.11.2026';
   let setupEmoji = {p1: '', p2: ''};
   let chain = Promise.resolve();
   let hereUntil = {p1: 0, p2: 0}, hereTimer = null;   // until when each seat counts as "in the app"
+  let reactOpen = false;                               // the emoji panel behind the 😊 button
 
   const $ = id => document.getElementById(id);
 
@@ -1150,8 +1159,13 @@ const VERSION = '9 · 02.11.2026';
     $('share').hidden = !showShare;
     if (showShare) $('shareUrl').value = location.href;
     $('footShare').hidden = mode !== 'remote';
-    $('reacts').hidden = !(mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && (st.status === 'playing' || st.status === 'over'));
-    $('says').hidden = $('reacts').hidden;
+    const canReact = mode === 'remote' && !!me && !!st && !!st.seats.p1 && !!st.seats.p2 && (st.status === 'playing' || st.status === 'over');
+    if (!canReact) reactOpen = false;
+    $('reactBtn').hidden = !canReact;
+    $('reactBtn').setAttribute('aria-expanded', String(reactOpen));
+    $('reactBtn').textContent = reactOpen ? '✕' : '😊';
+    $('reactBtn').setAttribute('aria-label', reactOpen ? 'Reaktionen schliessen' : 'Reaktion senden');
+    $('reactPanel').hidden = !reactOpen;
     $('tablesBtn').hidden = myRooms().length < 2;   // more than one table: switch at the top
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
@@ -1509,6 +1523,9 @@ const VERSION = '9 · 02.11.2026';
   secretGesture($('brand'), toggleSecret);
 
   // ---------- reactions ----------
+  // Behind the round 😊 button: tapping it opens the emojis and quick replies, sending one closes them.
+  $('reactBtn').addEventListener('click', () => { reactOpen = !reactOpen; render(); });
+  function closeReactions(){ if (reactOpen){ reactOpen = false; render(); } }
   for (const [emo, label] of REACTIONS){
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'rx'; b.textContent = emo; b.setAttribute('aria-label', label);
@@ -1522,6 +1539,7 @@ const VERSION = '9 · 02.11.2026';
     const now = Date.now();
     if (now - lastReact < 1200) return;
     lastReact = now;
+    closeReactions();
     showReaction(emo, seat);
     try { await ref.update({[`seats.${seat}.react`]: {e: emo, n: now}}); }
     catch(e){ writeFailed(e); }
@@ -1539,6 +1557,7 @@ const VERSION = '9 · 02.11.2026';
     const now = Date.now();
     if (now - lastReact < 1200) return;
     lastReact = now;
+    closeReactions();
     showReaction(SAYINGS.find(x => x[0] === k)[1], seat, true);
     try { await ref.update({[`seats.${seat}.say`]: {k, n: now}}); }
     catch(e){ writeFailed(e); }
