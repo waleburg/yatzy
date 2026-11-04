@@ -15,7 +15,9 @@ export const SEATS = ['p1','p2'];
 export const EMOJIS = ['🥦','💚'];
 export const REACTIONS = [['😂','Lachen'], ['😍','Verliebt'], ['😘','Kuss'], ['🙄','Genervt'], ['😡','Wütend'], ['😱','Schockiert'], ['👏','Applaus']];
 export const REACT_SET = REACTIONS.map(r => r[0]);
-// Quick replies, sent like a reaction and also as a notification.
+// Quick replies, sent like a reaction and also as a notification. An own message is the
+// reply {k: 'text', t}, at most MSG_MAX characters.
+export const MSG_MAX = 80;
 export const SAYINGS = [['minute', 'Gib mer e Minute ⏳'], ['later', 'Spöter hüt 🌙'], ['tomorrow', 'Morn ☀️'], ['now', 'Bi grad da 🎲']];
 export const HISTORY_MAX = 50;
 export const other = s => s === 'p1' ? 'p2' : 'p1';
@@ -69,7 +71,13 @@ export function clean(raw){
       nick: str(v.nick, 16),
       emoji: EMOJIS.includes(v.emoji) ? v.emoji : '',
       react: v.react && REACT_SET.includes(v.react.e) && Number.isFinite(v.react.n) ? {e: v.react.e, n: v.react.n} : null,
-      say: v.say && SAYINGS.some(x => x[0] === v.say.k) && Number.isFinite(v.say.n) ? {k: v.say.k, n: v.say.n} : null,
+      say: !v.say || !Number.isFinite(v.say.n) ? null
+        : SAYINGS.some(x => x[0] === v.say.k) ? {k: v.say.k, n: v.say.n}
+        : v.say.k === 'text' && typeof v.say.t === 'string' && v.say.t.trim() ? {k: 'text', t: v.say.t.trim().slice(0, MSG_MAX), n: v.say.n}
+        : null,
+      // the love notes (c: the box) and own messages (c: 'msg') that reached this phone, newest first
+      got: Array.isArray(v.got) ? v.got.filter(g => g && typeof g.t === 'string' && g.t && Number.isFinite(g.n)).slice(0, 5)
+        .map(g => ({t: g.t.slice(0, 140), n: g.n, c: KEYS.includes(g.c) || g.c === 'msg' ? g.c : ''})) : [],
       notes: Array.isArray(v.notes) ? v.notes.filter(t => typeof t === 'string' && t.trim()).slice(0,30).map(t => t.trim().slice(0,140)) : [],
       yz: int(v.yz, 0, 15) ? v.yz : 0
     };

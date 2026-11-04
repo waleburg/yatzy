@@ -99,7 +99,7 @@ export function pushMessages(prev, next, room, appUrl){
       out.push({seat, kind: 'react', message: {...base, tag: 'yatzy-react-' + room, title: label(next, o), body: `${r.e} ${name}`.trim()}});
     }
     const q = next.seats[o] && next.seats[o].say, wasQ = prev && prev.seats[o] && prev.seats[o].say;
-    const text = q && (SAYINGS.find(x => x[0] === q.k) || [])[1];
+    const text = q && (q.k === 'text' ? q.t : (SAYINGS.find(x => x[0] === q.k) || [])[1]);
     if (text && (!wasQ || wasQ.n !== q.n))
       out.push({seat, kind: 'say', message: {...base, tag: 'yatzy-say-' + room, title: label(next, o), body: text}});
   }

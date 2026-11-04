@@ -73,6 +73,13 @@ test('a quick reply reaches the other person as a message from the sender', () =
   assert.deepEqual(pushMessages(next, next, 'raum-test1234', APP), [], 'the same reply only once');
 });
 
+test('an own message arrives as a notification with its text', () => {
+  const next = game();
+  next.seats.p1.say = {k: 'text', t: 'Du schaffsch das, Babe! 💪', n: 3000};
+  const out = pushMessages(game(), next, 'raum-test1234', APP);
+  assert.deepEqual(out.map(x => [x.seat, x.kind, x.message.title, x.message.body]), [['p2', 'say', '💚 Marcel', 'Du schaffsch das, Babe! 💪']]);
+});
+
 test('pushes only go to real push services over https', () => {
   const sub = endpoint => ({endpoint, keys: {p256dh: 'x', auth: 'y'}});
   assert.ok(subscription(sub('https://web.push.apple.com/abc')));

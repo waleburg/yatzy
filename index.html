@@ -148,6 +148,18 @@ button{font:inherit;color:inherit}
 .rx{min-height:40px;border:none;border-radius:10px;background:rgba(255,255,255,.08);font-size:22px;line-height:1;cursor:pointer;transition:transform .12s, background .12s}
 .rx:active{transform:scale(.88);background:rgba(255,255,255,.18)}
 .says{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:5px}
+.msg{display:flex;gap:6px;margin-top:6px}
+.msg input{flex:1;min-width:0;min-height:40px;border-radius:10px;border:1.5px solid rgba(255,255,255,.3);background:rgba(0,0,0,.2);color:var(--felt-fg);font:inherit;font-size:16px;padding:0 10px}
+.msg input::placeholder{color:var(--felt-muted)}
+.msg-send{flex:none;width:44px;min-height:40px;border:none;border-radius:10px;background:var(--gold);color:var(--gold-fg);font-size:18px;font-weight:700;cursor:pointer}
+.msg-count{font-size:11px;color:var(--felt-muted);text-align:right;margin-top:3px;min-height:14px}
+/* in the menu: which love notes reached the partner's phone */
+.got{margin:6px 0 12px}
+.got small{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+.got ul{list-style:none;margin:0;padding:0}
+.got li{margin:0;padding:6px 0;border-top:1px solid var(--grid)}
+.got q{display:block;font-family:var(--font-pen);font-size:17px;font-weight:700;line-height:1.25;color:var(--love-fg);quotes:none}
+.got span{font-size:12px;color:var(--muted)}
 .sy{min-height:36px;padding:0 8px;border:none;border-radius:10px;background:rgba(255,255,255,.08);color:var(--felt-fg);font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:transform .12s, background .12s}
 .sy:active{transform:scale(.94);background:rgba(255,255,255,.18)}
 .reaction .say{max-width:min(320px,80vw);padding:12px 18px;border-radius:16px;background:var(--toast);color:var(--toast-fg);font-size:22px;font-weight:700;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -356,6 +368,11 @@ details li{margin:3px 0}
     <div class="react-panel" id="reactPanel" hidden>
       <div class="reacts" id="reacts" role="group" aria-label="Emoji senden"></div>
       <div class="says" id="says" role="group" aria-label="Kurz antworten"></div>
+      <form class="msg" id="msgForm" autocomplete="off">
+        <input id="msgInput" maxlength="80" enterkeyhint="send" autocomplete="off" aria-label="Eigene Nachricht">
+        <button class="msg-send" type="submit" aria-label="Nachricht senden">↑</button>
+      </form>
+      <div class="msg-count" id="msgCount"></div>
     </div>
     <form class="setup" id="setupForm" hidden>
       <div class="fields">
@@ -470,6 +487,7 @@ details li{margin:3px 0}
           <p class="note" id="notesIntro"></p>
           <textarea id="notesText" rows="7" maxlength="4500" aria-label="Eigene Liebesbotschaften, eine pro Zeile"></textarea>
           <div class="row"><button class="lnk" type="button" id="notesSave">Speichern</button></div>
+          <div class="got" id="gotBox" hidden><small id="gotTitle"></small><ul id="gotList"></ul></div>
         </details>
       </div>
     </section>
@@ -510,15 +528,15 @@ details li{margin:3px 0}
 
 <script type="module">
 import {
-  CATS, KEYS, SEATS, EMOJIS, REACTIONS, SAYINGS, other, score, totals, filled, blank, clean, nameOf,
+  CATS, KEYS, SEATS, EMOJIS, REACTIONS, SAYINGS, MSG_MAX, other, score, totals, filled, blank, clean, nameOf,
   rollDice, toggleHeld, enterScore, undoAllowed, undoEntry, newRound, beginGame, takeSeat, editSeat, loveTeam, computeStats,
   boxOptions, markBox, mergeRooms, normCode, applyPatch, roomFromLink, BOX_MAX, ROOM_RE
-} from './game.js?r=10';   // raise the number when game.js changes, so no phone mixes old and new
+} from './game.js?r=11';   // raise the number when game.js changes, so no phone mixes old and new
                           // (r, not v: service workers up to version 7 answer an unknown ?v= with an old copy)
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '13 · 02.11.2026';
+const VERSION = '14 · 04.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -649,7 +667,7 @@ const VERSION = '13 · 02.11.2026';
     if (custom.length && (isMarcel(seat) || Math.random() < 0.5)){
       if (Math.random() > (cat === 'yatzy' && pts ? 1 : 0.5)) return;
       const options = custom.length > 1 ? custom.filter(t => t !== lastNote) : custom;
-      return showNote(options[Math.floor(Math.random() * options.length)], 'Von ' + seatLabel(o));
+      return love(options[Math.floor(Math.random() * options.length)]);
     }
     if (isMarcel(seat)) return;
     const up = CATS.find(c => c.k === cat).up;
@@ -665,7 +683,15 @@ const VERSION = '13 · 02.11.2026';
     else { pool = NOTES.ok; chance = 0.4; }
     if (Math.random() > chance) return;
     const options = pool.filter(t => t !== lastNote);
-    showNote(options[Math.floor(Math.random() * options.length)], 'Von ' + seatLabel(o));
+    love(options[Math.floor(Math.random() * options.length)]);
+    function love(text){ showNote(text, 'Von ' + seatLabel(o)); logArrived(seat, text, cat); }
+  }
+  // The 💚 partner sees which love notes (and own messages) reached the 🥦 phone: the last five,
+  // kept on the seat of the phone that showed them.
+  function logArrived(seat, t, c){
+    if (mode !== 'remote' || !S || !S.seats[seat] || seat !== mySeat()) return;
+    const list = [{t: t.slice(0, 140), n: Date.now(), c}, ...(S.seats[seat].got || [])].slice(0, 5);
+    ref.update({[`seats.${seat}.got`]: list}).catch(() => {});
   }
   function showNote(text, signature){
     lastNote = text;
@@ -1199,6 +1225,7 @@ const VERSION = '13 · 02.11.2026';
     $('reactBtn').textContent = reactOpen ? '✕' : '😊';
     $('reactBtn').setAttribute('aria-label', reactOpen ? 'Reaktionen schliessen' : 'Reaktion senden');
     $('reactPanel').hidden = !reactOpen;
+    if (canReact) $('msgInput').placeholder = `Nachricht an ${seatLabel(other(me))} …`;
     const offline = mode === 'remote' && (!navigator.onLine || (hadServer && netCached));
     $('netBadge').hidden = !offline;
     if (offline && !wasOffline) toast('Keine Verbindung. Deine Züge werden gesendet, sobald du wieder online bist.');
@@ -1338,6 +1365,18 @@ const VERSION = '13 · 02.11.2026';
     $('notesIntro').textContent = `Schreib Sätze für ${seatName(other(me))}, einen pro Zeile (höchstens 30). Wenn ${seatName(other(me))} etwas einträgt, erscheint manchmal einer davon, unterschrieben mit deinem Namen.`;
     const ta = $('notesText');
     if (notesShownFor !== me && document.activeElement !== ta){ ta.value = st.seats[me].notes.join('\n'); notesShownFor = me; }
+    const got = (st.seats[other(me)] && st.seats[other(me)].got) || [];
+    $('gotBox').hidden = !got.length;
+    $('gotTitle').textContent = `Zuletzt bei ${seatLabel(other(me))} angekommen`;
+    const when = n => { const d = new Date(n), t = d.toLocaleTimeString('de-CH', {hour: '2-digit', minute: '2-digit'});
+      return d.toDateString() === new Date().toDateString() ? 'heute ' + t : d.toLocaleDateString('de-CH', {day: '2-digit', month: '2-digit'}) + ' ' + t; };
+    $('gotList').replaceChildren(...got.map(g => {
+      const li = document.createElement('li'), q = document.createElement('q'), m = document.createElement('span');
+      q.textContent = g.t;
+      m.textContent = when(g.n) + (g.c === 'msg' ? ' · deine Nachricht' : g.c ? ' · nach ' + CATS.find(c => c.k === g.c).n : '');
+      li.append(q, m);
+      return li;
+    }));
   }
   $('notesSave').addEventListener('click', async () => {
     const me = mySeat();
@@ -1506,8 +1545,17 @@ const VERSION = '13 · 02.11.2026';
     const r1 = prev.seats[o] && prev.seats[o].react, r2 = next.seats[o] && next.seats[o].react;
     if (r2 && (!r1 || r1.n !== r2.n) && Math.abs(Date.now() - r2.n) < 120000){ showReaction(r2.e, o); chime(SOUND_REACT); }
     const q1 = prev.seats[o] && prev.seats[o].say, q2 = next.seats[o] && next.seats[o].say;
+    const fresh = (a, b) => b && (!a || a.n !== b.n) && Math.abs(Date.now() - b.n) < 120000;
     const said = q2 && SAYINGS.find(x => x[0] === q2.k);
-    if (said && (!q1 || q1.n !== q2.n) && Math.abs(Date.now() - q2.n) < 120000){ showReaction(said[1], o, true); chime(SOUND_REACT); }
+    if (said && fresh(q1, q2)){ showReaction(said[1], o, true); chime(SOUND_REACT); }
+    if (q2 && q2.k === 'text' && fresh(q1, q2)){
+      showNote(q2.t, 'Von ' + seatLabel(o, next)); chime(SOUND_REACT);
+      if (loveTeam(next, o)) logArrived(seat, q2.t, 'msg');
+    }
+    // one of my love notes just appeared on the partner's phone
+    const g1 = prev.seats[o] && prev.seats[o].got[0], g2 = next.seats[o] && next.seats[o].got[0];
+    if (g2 && g2.c !== 'msg' && fresh(g1, g2) && loveTeam(next, seat))
+      toast(`💌 ${seatName(o, next)} hat eben eine Liebesbotschaft bekommen: «${g2.t}»`);
     const wasMine = prev.status === 'playing' && prev.turn === seat;
     if (next.status === 'playing' && next.turn === seat && !wasMine) chime(SOUND_TURN);
     else if (prev.status === 'waiting' && next.status !== 'waiting') chime(SOUND_JOIN);
@@ -1591,6 +1639,22 @@ const VERSION = '13 · 02.11.2026';
     b.addEventListener('click', () => sendSay(k));
     $('says').appendChild(b);
   }
+  // An own message: shown to the other person as a pink note like a love note, or as a notification.
+  $('msgInput').addEventListener('input', () => { const n = $('msgInput').value.length; $('msgCount').textContent = n ? `${n} / ${MSG_MAX}` : ''; });
+  $('msgForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const seat = mySeat(), t = $('msgInput').value.trim().replace(/\s+/g, ' ').slice(0, MSG_MAX);
+    if (mode !== 'remote' || !seat || !t) return;
+    const now = Date.now();
+    if (now - lastReact < 1200) return;
+    lastReact = now;
+    $('msgInput').value = ''; $('msgCount').textContent = '';
+    $('msgInput').blur();
+    closeReactions();
+    showReaction(t, seat, true);
+    try { await ref.update({[`seats.${seat}.say`]: {k: 'text', t, n: now}}); }
+    catch(e){ writeFailed(e); }
+  });
   async function sendSay(k){
     const seat = mySeat();
     if (mode !== 'remote' || !seat) return;

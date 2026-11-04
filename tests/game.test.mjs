@@ -398,3 +398,15 @@ test('a table is found in a pasted link', () => {
   assert.equal(roomFromLink(''), null);
 });
 
+test('an own message and the list of arrived love notes survive the sync', () => {
+  const st = clean({seats: {p1: {id: 'a', nick: 'Marcel', say: {k: 'text', t: '  Du schaffsch das! ' + 'x'.repeat(100), n: 5}},
+    p2: {id: 'b', nick: 'Brokkoli', got: [{t: 'Guet gmacht! Kuss!', n: 9, c: 'house'}, {t: 'Hi', n: 8, c: 'msg'}, {t: '', n: 7}, {t: 'x', n: 6, c: 'bad'},
+      {t: 'a', n: 5}, {t: 'b', n: 4}, {t: 'c', n: 3}]}}});
+  assert.equal(st.seats.p1.say.k, 'text');
+  assert.equal(st.seats.p1.say.t.length, 80, 'at most 80 characters');
+  assert.ok(st.seats.p1.say.t.startsWith('Du schaffsch das!'));
+  assert.equal(clean({seats: {p1: {id: 'a', say: {k: 'text', t: '   ', n: 1}}}}).seats.p1.say, null, 'an empty message is none');
+  assert.deepEqual(st.seats.p2.got.map(g => g.c), ['house', 'msg', '', '', ''], 'five at most, broken ones dropped');
+  assert.deepEqual(st.seats.p1.got, []);
+});
+

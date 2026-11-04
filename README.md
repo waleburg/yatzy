@@ -59,7 +59,7 @@ Mit einem kostenlosen GitHub-Konto muss das Repository für Pages öffentlich se
 
 **Revanche** startet das nächste Spiel sofort, abwechselnd beginnt die andere Person. Deinen Namen änderst du jederzeit, indem du oben auf ihn tippst.
 
-Die Liebesbotschaften gehen nur von 💚 an 🥦. Niemand bekommt 🥦 automatisch: Dein Handy merkt sich dein Symbol und nimmt es an neue Tische mit. An einem Tisch mit jemand anderem, zum Beispiel Emma, kommen deshalb keine Liebesbotschaften an.
+Die Liebesbotschaften gehen nur von 💚 an 🥦. Niemand bekommt 🥦 automatisch: Dein Handy merkt sich dein Symbol und nimmt es an neue Tische mit. An einem Tisch mit jemand anderem, zum Beispiel Emma, kommen deshalb keine Liebesbotschaften an. Erscheint bei 🥦 eine Liebesbotschaft, siehst du als 💚 eine kurze Meldung; die letzten fünf stehen bei deinen eigenen Liebesbotschaften im Menü.
 
 **Tipp:** Füge die Seite in Safari über **Teilen › Zum Home-Bildschirm** hinzu. Dann öffnet sie sich wie eine App.
 
@@ -73,7 +73,7 @@ Die Liebesbotschaften gehen nur von 💚 an 🥦. Niemand bekommt 🥦 automatis
 - **Link in der App öffnen:** Ein Link aus einer Nachricht öffnet sich auf dem iPhone immer in Safari, nicht in der App auf dem Home-Bildschirm. Kopiere ihn (in Safari zeigt Yatzy dafür einen Hinweis mit «Link kopieren») und setze ihn in der App unter «☰ Menü › Tisch per Link öffnen» ein. Die ganze Nachricht darf mit, Yatzy findet den Tisch darin.
 - **Meine Tische:** Im Menü unter «Tische» stehen alle Tische, die das Handy geöffnet hat, mit wer gegen wen spielt, Spielstand, Siegen und Datum. Antippen öffnet den Tisch. Mit einem persönlichen Code wird die Liste zusätzlich auf dem Server gesichert. Gibst du denselben Code auf einem anderen Handy ein, oder nachdem die App gelöscht wurde, sind alle Tische wieder da.
 - **Benachrichtigungen:** Im Menü unter «Einstellungen» schaltest du sie einmal pro Handy ein, dann gelten sie für alle Tische. «Test senden» schickt eine Probe. Du bekommst eine Nachricht, wenn du dran bist, wenn das Spiel fertig ist, wenn jemand eine Revanche will und wenn dir jemand ein Emoji oder eine kurze Antwort schickt, aber nicht, solange die App bei dir offen ist. Auf dem iPhone geht das nur in der App auf dem Home-Bildschirm (iOS 16.4 oder neuer).
-- **Reaktionen:** Der runde 😊-Knopf neben dem Würfel-Knopf öffnet die Emojis und die kurzen Antworten «Gib mer e Minute ⏳», «Spöter hüt 🌙», «Morn ☀️» und «Bi grad da 🎲». Antippen schickt sofort und klappt wieder zu. Bei der anderen Person erscheint es in der App oder als Benachrichtigung.
+- **Reaktionen:** Der runde 😊-Knopf neben dem Würfel-Knopf öffnet die Emojis und die kurzen Antworten «Gib mer e Minute ⏳», «Spöter hüt 🌙», «Morn ☀️» und «Bi grad da 🎲». Darunter kannst du eine eigene kurze Nachricht schreiben (höchstens 80 Zeichen); sie erscheint bei der anderen Person als rosa Zettel wie eine Liebesbotschaft. Antippen schickt sofort und klappt wieder zu. Bei der anderen Person erscheint es in der App oder als Benachrichtigung.
 - **Erinnerung:** Bist du seit drei Stunden dran, kommt eine einzige Erinnerung. Nachts zwischen 22 und 8 Uhr wartet sie bis zum Morgen.
 - **Grüner Punkt:** Neben dem Namen der anderen Person leuchtet ein grüner Punkt, solange sie die App gerade offen hat.
 - **Version:** Ganz unten im Menü steht die Version. So siehst du, ob beide Handys die neuste haben.
