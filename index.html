@@ -536,7 +536,7 @@ import {
 // The own server on Cloudflare (server/). Without it the page runs on one phone only.
 const SERVER_URL = 'https://yatzy.marcel-waelti.workers.dev';
 // Shown at the bottom of the page. Raise it with every change, so each phone shows which one it has.
-const VERSION = '15 · 04.11.2026';
+const VERSION = '16 · 04.11.2026';
 
 (() => {
   const PIPS = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -1266,13 +1266,12 @@ const VERSION = '15 · 04.11.2026';
     };
     const vs = document.createElement('span'); vs.className = 'vs'; vs.textContent = 'ZU';
     row.append(side('p1'), vs, side('p2'));
-    let best = null;
-    for (const seat of SEATS) for (const k of KEYS){ const v = st.scores[seat][k]; if (v != null && (!best || v > best.v)) best = {seat, k, v}; }
+    // every five of a kind counts, in whatever box, like in the statistics (on paper only the 50)
+    const yatzys = x => Math.max((st.seats[x] && st.seats[x].yz) || 0, st.scores[x].yatzy === 50 ? 1 : 0);
     const facts = [
       ['Vorsprung', win ? `${Math.abs(t.p1.total - t.p2.total)} Punkte` : 'Gleichstand'],
       ['Bonus (63+)', SEATS.filter(x => t[x].bonus).map(x => seatName(x)).join(' und ') || 'niemand'],
-      ['Yatzy', SEATS.filter(x => st.scores[x].yatzy === 50).map(x => seatName(x)).join(' und ') || 'keins'],
-      ['Beste Eintragung', best ? `${best.v} bei ${CATS.find(c => c.k === best.k).n} (${seatName(best.seat)})` : '–']
+      ['Yatzy', SEATS.filter(x => yatzys(x)).map(x => seatName(x) + (yatzys(x) > 1 ? ` (${yatzys(x)}×)` : '')).join(' und ') || 'keins']
     ];
     const ul = document.createElement('ul'); ul.className = 'over-facts';
     for (const [a, b] of facts){
