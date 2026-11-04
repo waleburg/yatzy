@@ -288,9 +288,6 @@ test('box statistics come from games that kept their score sheet', () => {
   assert.equal(st.per.p2.bonus, 0);
   assert.equal(st.per.p1.zeros, 1);
   assert.equal(st.per.p2.zeros, 2);
-  assert.equal(st.bestBox.p1.k, 'large', 'Marcel is 20 points ahead there');
-  assert.equal(st.bestBox.p2.k, 'yatzy');
-  assert.deepEqual(computeStats([old]).bestBox, {p1: null, p2: null});
 
   assert.deepEqual(clean({history: [g]}).history[0].s2, b, 'the sheets survive the sync');
   assert.equal(clean({history: [{...g, s1: [1, 2]}]}).history[0].s1, undefined, 'a broken sheet is dropped');

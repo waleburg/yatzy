@@ -338,10 +338,10 @@ export function loveTeam(st, sender){
   const mine = st && st.seats[sender], theirs = st && st.seats[other(sender)];
   return !!mine && !!theirs && mine.emoji === '💚' && (theirs.emoji === '🥦' || (theirs.nick || '').includes('🥦'));
 }
-// Statistics over the finished games. The box figures (bonus, scratched boxes, best box)
+// Statistics over the finished games. The box figures (bonus, scratched boxes)
 // only count games that kept their score sheet.
 export function computeStats(history){
-  const fresh = () => ({wins: 0, best: 0, low: 0, sum: 0, y: 0, run: 0, longest: 0, margin: 0, bonus: 0, zeros: 0, box: KEYS.map(() => 0)});
+  const fresh = () => ({wins: 0, best: 0, low: 0, sum: 0, y: 0, run: 0, longest: 0, margin: 0, bonus: 0, zeros: 0});
   const per = {p1: fresh(), p2: fresh()};
   let draws = 0, streak = {seat: null, n: 0}, sheets = 0;
   const months = new Map();
@@ -364,7 +364,6 @@ export function computeStats(history){
       for (const [seat, sh] of [['p1', h.s1], ['p2', h.s2]]){
         if (sh.slice(0, 6).reduce((a, x) => a + (x || 0), 0) >= 63) per[seat].bonus++;
         per[seat].zeros += sh.filter(x => x === 0).length;
-        sh.forEach((x, k) => { per[seat].box[k] += x || 0; });
       }
     }
     if (!w){ draws++; streak = {seat: null, n: 0}; per.p1.run = per.p2.run = 0; return; }
@@ -375,18 +374,9 @@ export function computeStats(history){
     streak = streak.seat === w ? {seat: w, n: streak.n + 1} : {seat: w, n: 1};
   });
   const avg = seat => history.length ? Math.round(per[seat].sum / history.length) : 0;
-  // each one's best box: where they are furthest ahead of the other on average
-  const bestBox = seat => {
-    let best = null;
-    KEYS.forEach((k, i) => {
-      const lead = (per[seat].box[i] - per[other(seat)].box[i]) / (sheets || 1);
-      if (lead > 0 && (!best || lead > best.lead)) best = {k, lead};
-    });
-    return best;
-  };
   return {
     games: history.length, per, avg: {p1: avg('p1'), p2: avg('p2')}, draws, streak,
     months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)),   // newest first
-    sheets, bestBox: {p1: bestBox('p1'), p2: bestBox('p2')}
+    sheets
   };
 }
